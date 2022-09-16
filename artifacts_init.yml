@@ -1,0 +1,12 @@
+---
+- hosts: all
+  connection: local
+  any_errors_fatal: true
+  vars:
+    step: "{{ lookup('env', 'CONFIG_NAME') | default('config', true )}}"
+  vars_files:
+    - .gitlab-ci.yml
+  roles:
+    - role: prepare
+    - role: get_artifacts
+    - role: artifact_init
