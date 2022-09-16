@@ -1,0 +1,62 @@
+---
+idf:
+  net_config: &net_config
+    admin:
+      interface: 0
+      network: 10.253.0.0
+      mask: 24
+      gateway: 10.253.0.1
+      dns: 10.253.0.1
+
+os_infra:
+  net_config: *net_config
+  user:
+    name: pod-test
+    is_admin: false
+  tenant:
+    name: pod-test
+    public_net_name: internet-nat-dl
+    flavor_prefix: pod-test
+    quotas:
+      cores: 112
+      ram: 221184
+      gigabytes: 1200
+      floating_ips: 15
+      instances: 15
+      snapshots: 15
+      volumes: 45
+      server_group_members: 15
+  images_to_push:
+  image_default: Ubuntu_1804
+  image2user_mapping:
+    Ubuntu_1804: ubuntu
+  nodes_roles:
+    # control01: [kube-master, etcd, monitoring]
+    # compute01: [kube-node]
+    # compute02: [kube-node]
+    # compute03: [kube-node]
+    # compute04: [kube-node]
+    # compute05: [kube-node]
+    # compute06: [kube-node]
+    # compute07: [kube-node]
+    # compute08: [kube-node]
+    # compute09: [kube-node]
+    # compute10: [kube-node]
+    # compute11: [kube-node]
+    # compute12: [kube-node]
+    jumphost1: [jumphost]
+  roles_group:
+    # k8s-cluster:
+    #  - kube-master
+    #  - kube-node
+    #  - monitoring
+    k8s-full-cluster:
+      # - k8s-cluster
+      - jumphost
+
+  openstack:
+    cinder: false
+    lbaas: false
+    octavia: false
+
+  ssh_pub_key_default: "ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQEAr0If62QHgf/xKzomkwBD9c1ol7edWpyG5+p9UBRE0D/bJcA5lyRpaYlcjxp3pfnN+WiVYfzjwHDjeDlyAOpH2o3yrBCA9U+sU6PjhIH/BXFVkVQBY4xAmtjQnN3QCzjn8BA6PbaEt53OvvaYqtgg0yc5OOA0nyDlcg/FU88I1MnhZvjTU90V4QEYKCMAyYcz6NdjGfC7PmpKIVmSWgHOdR59d5CGIRv6BnIWIBqXy+z+eldbSKBrRVo/dv/H8Q0uwS6/rA2gLXeXhsQmEFZXsxwovypWm6t5hWMK/4cXA88AwylMd9xSroic398RZiO3QygZ9L7aQN2rnuAQHHOOaw=="

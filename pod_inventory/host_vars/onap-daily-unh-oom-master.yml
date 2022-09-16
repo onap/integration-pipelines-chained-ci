@@ -1,0 +1,100 @@
+---
+jumphost:
+  server: 10.15.102.155
+  user: ubuntu
+environment: unh/k8s8-8
+longlife_artifact: true
+scenario_steps:
+  config:
+    project: config
+    get_artifacts:
+      - name: vim_unh
+        static_src: true
+    infra: k8s8-8
+  infra_deploy:
+    branch: master
+    project: cloud-infra
+    get_artifacts: config
+    extra_parameters:
+      ADMIN: true
+      TENANT_NAME: onap-daily-master
+      USER_NAME: onap-daily-master
+      IDENTIFIER: -daily-master
+      USE_PRIVATE_IP: true
+      ADD_FLOATING_IP: true
+  virt_install:
+    get_artifacts: infra_deploy
+    project: kubespray-install
+    branch: helm_3
+    extra_parameters:
+      kubespray_version: release-2.19
+      helm_release: v3.8.2
+      kube_network_plugin: cilium
+      kubernetes_release: v1.23.7
+      ENABLE_MONITORING: true
+      DOCKER_HUB_PROXY: docker.nexus.azure.onap.eu
+      GCR_PROXY: docker.nexus.azure.onap.eu
+      K8S_GCR_PROXY: docker.nexus.azure.onap.eu
+      QUAY_PROXY: docker.nexus.azure.onap.eu
+      GITHUB_PROXY: docker.nexus.azure.onap.eu
+      #DOCKER_HUB_PROXY: dockerhub.devops.telekom.de
+      #GCR_PROXY: artifactory.devops.telekom.de/gcr.io
+      #K8S_GCR_PROXY: artifactory.devops.telekom.de/k8s.gcr.io
+      #QUAY_PROXY: artifactory.devops.telekom.de/quay.io
+      #GITHUB_PROXY: artifactory.devops.telekom.de/ghcr.io.docker
+      HTTPS_DOCKER_PROXY: https://docker.nexus.azure.onap.eu
+  apps_deploy:
+    branch: master
+    extra_parameters:
+      OOM_BRANCH: master
+      ONAP_REPOSITORY: nexus3.onap.org:10001
+      ONAP_FLAVOR: unlimited
+      CLEAN: true
+      WORKAROUND: False
+      DOCKER_HUB_PROXY: docker.nexus.azure.onap.eu
+      ELASTIC_PROXY: docker.nexus.azure.onap.eu
+      K8S_GCR_PROXY: docker.nexus.azure.onap.eu
+      #DOCKER_HUB_PROXY: dockerhub.devops.telekom.de
+      #ELASTIC_PROXY: artifactory.devops.telekom.de/docker.elastic.co
+      #K8S_GCR_PROXY: artifactory.devops.telekom.de/k8s.gcr.io
+      GATHER_NODE_FACTS: false
+    get_artifacts:
+      - name: infra_deploy
+        limit_to:
+          - vars/user_cloud.yml: vars/user_cloud.yml
+          - inventory/infra: inventory/infra
+      - name: config
+        limit_to:
+          - vars/pdf.yml: vars/pdf.yml
+          - vars/idf.yml: vars/idf.yml
+          - vars/vim.yml: vars/vim.yml
+          - vars/vaulted_ssh_credentials.yml: vars/vaulted_ssh_credentials.yml
+    project: onap-install
+  apps_test:
+    project: onap-testing
+    branch: master
+    get_artifacts:
+      - name: apps_deploy
+        limit_to:
+          - vars/cluster.yml: vars/cluster.yml
+      - name: config
+        limit_to:
+          - vars/pdf.yml: vars/pdf.yml
+          - vars/vim.yml: vars/vim.yml
+          - vars/vaulted_ssh_credentials.yml: vars/vaulted_ssh_credentials.yml
+      - name: infra_deploy
+        limit_to:
+          - inventory/infra: inventory/infra
+      - name: virt_install
+        limit_to:
+          - vars/kube-config: vars/kube-config
+    extra_parameters:
+      DEPLOYMENT: oom
+      INFRA_DEPLOYMENT: kubespray
+      DEPLOYMENT_TYPE: full
+      DEPLOY_SCENARIO: onap-ftw
+      #GERRIT_REVIEW: "OOMDailyIstanbul"
+      #GERRIT_PATCHSET: "1"
+      ONAP_VERSION: master
+      #EXT_NET: "admin-daily-master"
+

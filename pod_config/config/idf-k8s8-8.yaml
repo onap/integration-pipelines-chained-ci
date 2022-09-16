@@ -1,0 +1,146 @@
+---
+idf:
+  net_config: &net_config
+    admin:
+      interface: 0
+      network: 10.253.0.0
+      mask: 24
+      gateway: 10.253.0.1
+      dns: 10.253.0.1
+os_infra:
+  net_config: *net_config
+  user:
+    name: onap-8
+    is_admin: false
+  tenant:
+    name: onap-8
+    public_net_name: external
+    flavor_prefix: k8s_rke
+    quotas:
+      cores: 100
+      ram: 300000
+      gigabytes: 1600
+      floating_ips: 20
+      instances: 20
+      snapshots: 15
+      volumes: 20
+      server_group_members: 15
+  images_to_push:
+  image_default: ubuntu-20.04.20220308-cloud-amd64
+  image2user_mapping:
+    ubuntu-20.04.20220308-cloud-amd64: ubuntu
+  nodes_roles:
+    control01: [kube-master, etcd, monitoring, nfs-server]
+    compute01: [kube-node]
+    compute02: [kube-node]
+    compute03: [kube-node]
+    compute04: [kube-node]
+    compute05: [kube-node]
+    compute06: [kube-node]
+    compute07: [kube-node]
+    compute08: [kube-node]
+    jumphost1: [jumphost]
+  roles_group:
+    k8s-cluster:
+     - kube-master
+     - kube-node
+    k8s-full-cluster:
+     - k8s-cluster
+     - jumphost
+     - monitoring
+     - etcd
+
+  dns:
+    update: true
+    provider: gandiv5
+    zone: onap.eu
+    name: k8s8-external
+    master: control01
+
+  onap:
+    global_storage:
+      enabled: false
+      class: hdd
+      fast_class: ssd-fast
+      rwx_class: nfs
+
+  kubernetes:
+    storage_classes:
+      - name: hdd
+        parameters:
+          availability: nova
+          type: public
+        provisioner: kubernetes.io/cinder
+      - name: ssd
+        parameters:
+          availability: nova
+          type: ssd
+        provisioner: kubernetes.io/cinder
+      - name: ssd-fast
+        parameters:
+          availability: nova
+          type: ssd-fast
+        provisioner: kubernetes.io/cinder
+    certmanager:
+      webhooks:
+        - name: letsencrypt-gandi
+          git: https://github.com/bwolf/cert-manager-webhook-gandi.git
+          namespaces: []
+          certificates: []
+    helm:
+      repositories:
+        - name: jetstack
+          url: https://charts.jetstack.io
+        - name: grafana
+          url: https://grafana.github.io/helm-charts
+        - name: timberio
+          url: https://packages.timber.io/helm/latest
+    charts:
+      cert-manager:
+        chart: jetstack/cert-manager
+        namespace: cert-manager
+        istioEnabled: false
+        content: |
+          ---
+          installCRDs: true
+          prometheus:
+            servicemonitor:
+              enabled: true
+      nfs-server-provisioner:
+        enabled: false
+        storageClass: ssd
+
+  openstack:
+    cinder: true
+    lbaas: false
+    octavia: true
+
+  ssh_pub_key_default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqdtSqUClQ0SVgqk\
+    1c9yRvqBDk/AWkeodO5tzmYdBAAo0G9fQxaS7XY2sZqjTgoPf/YTbGmdAJN2Ho+5n8Q/65YuFf\
+    vg7ROVcCRWLPO5rot+tqlflxM4G1cIu+e38vs9i6WqPrY+0HVtgKnnVvBztkXkZ7fWtdZZ/h0p\
+    SWE0JFqx8CoF5KldqI9UX/qsgrCOKG5XFbE9M+AtG99wRb+wGlXVmDcyyYVaAQHkkjc3GpwzH4\
+    /35OhjJwwFoASR8OpXp2ChnCTuj2Mlp20OK3QsyjhfTA09bP7oZbCvujoKpNa/ApoEGRV8hLg8\
+    ak3t6kp2FOLoCYVnpGhmCD5fUYOOL5 Generated-by-Nova
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDA/6kqp3MNvYCajLYIunRG4w8aZFbfNZqFmh\
+    OnvR/8h0vrTJAxSVPMZVETlEkIdZMB8wKHnvj75TepQVxP2dXtqlgrmVnCOrKDYNgCQsMoDr/E\
+    aYXbv+ph/asWWFuIQ9wPVZG3+Qlf+Y5ne88WVnjlLOvqoB7UJYEqNnhqDR4OVgBVhnROlcnPZE\
+    4mh3TOxFXMDNctOQUr+4h4Cp7hBzXW7SbbpDMiQizIGSEFrzA/L0/peSK1f105KDdenWSfSxsb\
+    qABuKL+2/68BheRqcXxhiXf3AUGMy2awhLRLPCmTbE10J2Ky6z1bNgB0Wnqb0bwWLerow0B3Ur\
+    b+c/0Lv9EZ Michal.Jagiello@t-mobile.pl
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCx/xA4zpJOXj03X3H8jNAZynKGOJvOkqnoRw\
+    q1gEw46WDnZoElAkTojjCZSqBXYsmK48uLNMsys0FufL4XPjtYEvjrApooQBXsH+JdGKjm9M16\
+    pvMSPjcxov0IQ+GuTrBFEbg6ismmLNgAGdXBvJa4q+Ne0yaPEh3WbffbPEShIUj6wiFFI7pdd4\
+    je2Dka2kPrFBQUsJe6qUrQ3nbpXpNg3XGnKm3fqNfKWSw5Lc5UfvKxgLxU+9ur46O63LwgAyak\
+    o2FYJ5dC6RkAe91fpqUNcM4JhjuqmeTrqpi8QEjX4t22Zr6W26Ueepd7uuKyiRnXYd27uwjvHC\
+    gC41V0BGiB krzysztof.kuzmicki@nokia.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDGW9JWAgHvwB4xrbfjjn60X92gQpLeCxCNsh\
+    13jrtRVx8Ph5e0dpMX8fLsWAyY1JKj9w0xF6z1AWT4VbMJ+DkdjvIBDnZxVdjQkVtRdzSKpzBK\
+    iodQcQu1unCby3iKUelY/qDDwoeqcZMvmTnjaEwHCTRbKSo+O8VWw4IpY8NhPPzDlYB7Y6d4Rd\
+    FyLPiNc1vmFflEtu9Hle4JOYIisZFv7kaDihVXv+04YmwlfJQHu/BYlUTXGld41WsfXV8EM/8F\
+    RUwlVLKrUNMOiPcmdYXNX9MVbLlwBlRNVAfKIFacYQ192Pwc0TokLujpEfUl6XsTV/c+Yznm79\
+    3LfjiH3/hMHteJywkKcQYSGnKD/KeN5UpBy8VYu1FwXkNIU4YSy8jW+mtvz5hDxQm7uTOIaMzv\
+    1pnv/hZK2n+Lt5cigdclvpWSn/rwo+PUFZJgvx5VLo8m3jh8J3yKlwhkhKe0CnCfwaNSDOtV3x\
+    0ftRscgwzn4HdTfRl83RQqo8ywwnK01fs= Lukasz.Rajewski@t-mobile.pl"
