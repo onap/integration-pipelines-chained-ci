@@ -1,0 +1,21 @@
+---
+jumphost:
+  server: 10.126.0.26
+  user: ubuntu
+environment: pod-test
+scenario_steps:
+  config:
+    project: config
+    get_artifacts:
+      - name: vim_dell
+        static_src: true
+    infra: pod-test
+  infra_deploy:
+    branch: master
+    project: cloud-infra
+    extra_parameters:
+      ADMIN: true
+      CLEAN: true
+      TENANT_NAME: "{{ lookup('env','TENANT_NAME')|default('pod-test', true) }}"
+      USER_NAME: "{{ lookup('env','USER_NAME')|default('pod-test', true) }}" 
+      ANSIBLE_VAULT_PASSWORD: "{{ lookup('env','ANSIBLE_VAULT_PASSWORD')|default('test', true) }}"

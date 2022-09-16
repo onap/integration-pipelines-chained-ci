@@ -1,0 +1,4 @@
+---
+ansible_host: 192.168.1.143
+ansible_user: ubuntu
+public_fqdn: 192.168.1.143

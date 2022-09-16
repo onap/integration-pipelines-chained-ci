@@ -1,0 +1,15 @@
+stages:
+  - test
+
+yaml_checking:
+  stage: test
+  tags:
+    - gitlab-org
+  except:
+    - schedules
+    - triggers
+    - web
+  image: sdesbure/yamllint:latest
+  script:
+    - yamllint */tasks/*.yml
+
