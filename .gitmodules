@@ -1,0 +1,6 @@
+[submodule "chained-ci-vue"]
+	path = chained-ci-vue
+	url = https://gitlab.com/Orange-OpenSource/lfn/ci_cd/chained-ci-vue.git
+[submodule "roles"]
+	path = roles
+	url = https://gitlab.com/Orange-OpenSource/lfn/ci_cd/chained-ci-roles.git
