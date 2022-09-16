@@ -1,0 +1,45 @@
+---
+##
+# Warn if log level is high
+##
+- name: Warn if log level is high
+  debug:
+    msg: "{{ msg.split('\n') }}"
+    verbosity: 3
+  vars:
+    msg: |
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! Log level is HIGH  !                                                 !!
+      !! Some sensitive data may be visible to everyone.                      !!
+      !! Don't forget to clean the task output !                              !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+##
+# Generate the CI file
+##
+- name: generate the new gitlab-ci file from inventory
+  run_once: true
+  block:
+    - name: create a tempfile
+      tempfile:
+        state: file
+        suffix: temp
+      register: tmp_file
+    - copy:
+        src: "{{ ci_file }}"
+        dest: "{{ tmp_file.path }}"
+      ignore_errors: true
+    - name: generate the gitlab-ci.yml
+      template:
+        src: gitlab-ci.yml
+        dest: "{{ ci_file }}"
+  rescue:
+    - name: restore gitlab-ci
+      copy:
+        src: "{{ tmp_file.path }}"
+        dest: "{{ ci_file }}"
+  always:
+    - name: destroy temp file
+      file:
+        path: "{{ tmp_file.path }}"
+        state: absent

@@ -1,0 +1,42 @@
+---
+- block:
+    - name: get start time (epoch+milliseconds)
+      set_fact:
+        time_start: "{{ lookup('pipe', 'date +%s%N | head -c 13' ) | int }}"
+
+    - name: set tags
+      set_fact:
+        grafana_tags: "{{ [ inventory_hostname ] }}"
+
+    - name: add inpod in tags
+      set_fact:
+        grafana_tags: "{{ grafana_tags + [ inpod ] }}"
+      when: inpod is defined
+
+    - name: "Create a grafana annotation"
+      uri:
+        url: "{{ grafana.api | regex_replace('\\/$', '') }}/annotations"
+        method: POST
+        status_code: 200
+        body_format: "json"
+        body: "{{
+            {
+              'time': time_start | int,
+              'isRegion': true,
+              'timeEnd': (time_start | int + 10000000),
+              'tags': grafana_tags,
+              'title': step,
+              'text': text
+            }
+          }}"
+        headers:
+          Content-Type: "application/json"
+          Accept: "application/json"
+          Authorization: "Bearer {{ grafana.token }}"
+      register: grafana_events
+      vars:
+        text:
+          "<a href=\"{{ pipeline_url }}\">{{ step }}</a> running"
+
+  delegate_to: "{{ grafana.jumphost }}"
+  ignore_errors: true

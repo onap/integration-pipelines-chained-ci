@@ -1,0 +1,20 @@
+---
+
+- block:
+  - name: "Get successful job ids if artifact fetching"
+    uri:
+      url: >-
+        {{ gitlab.api_url }}/projects/{{ lookup( 'env', 'CI_PROJECT_ID')
+        }}/jobs?scope[]=success&per_page={{ job_id_fetch.per_page
+        }}&page={{ page }}
+      method: GET
+      headers:
+        PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    register: successful_jobs
+  - name: save successful job
+    set_fact:
+      job: >-
+        {{ successful_jobs.json|
+           selectattr('name', 'equalto', artifact_job_name)| list |
+           first | default({}) }}
+  when: job.id is not defined

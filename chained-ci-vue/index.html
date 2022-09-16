@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+
+    <title>Pipelines</title>
+
+    <!-- VUE JS development version, includes helpful console warnings -->
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+    <!-- My scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/lib.js"></script>
+
+    <!-- Visisbilityjs -->
+    <script src="js/visibility.core.js"></script>
+    <script src="js/visibility.timers.js"></script>
+
+    <!-- CSS -->
+    <link rel="icon" href="favicon.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue-grey.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.5.0/css/all.css" integrity="sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU" crossorigin="anonymous">
+  </head>
+
+  <body>
+    <div class="main">
+      <header class="w3-container w3-theme w3-card" id="header">
+        <h1   v-on:click="update($event)"
+              class='header w3-center'>{{ project.name }} UI</h1>
+      </header>
+
+      <script type="text/x-template" id="modal-template">
+        <transition name="modal">
+          <div class="modal-mask" v-on:click="closeModal($event, $emit)">
+            <div class="modal-wrapper">
+              <div class="modal-container">
+                <div class="modal-header"><slot name="header"></slot></div>
+                <div class="modal-body"><slot name="body"></slot></div>
+                <div class="modal-footer">
+                  <slot name="footer">
+                  </slot>
+                </div>
+              </div>
+            </div>
+          </div>
+        </transition>
+      </script>
+
+      <section id="auth">
+        <div class="w3-card-4" v-if="!globalAccessGranted">
+          <div class="w3-container">
+            <h2>Please set your gitlab<span v-if="privateTokens.length > 1">s</span>
+              private token<span v-if="privateTokens.length > 1">s</span>
+              </h2>
+          </div>
+          <form @submit="checkForm" class="w3-container">
+            <div v-for="token in privateTokens">
+              <label>
+                <a v-bind:href="'https://'+token.target+gitlabProfileToken">{{ token.target }}</a></label>
+              <label v-if="token.msg">[ {{ token.msg }} ]</label>
+              <div class="w3-xlarge statusIcon"
+                    v-bind:class="[ token.icon ]"></div>
+              <input
+                v-model="token.value"
+                class="w3-input"
+                v-bind:id="token.target"
+                type="password">
+              </input>
+            </div>
+            <button type="submit" class="w3-btn">Validate</button>
+          </form>
+          <div>
+            <div>
+              <div>this is required and can be generated on your user profile like:
+              <a v-bind="{ href: gitlabProfileToken }">{{gitlabProfileToken}}</a>
+              (Only API option is needed)</div>
+            </div>
+          </div>
+          </div>
+      </section>
+
+      <section class="w3-ul w3-border-top" id="pipelines">
+        <div v-if="accessGranted">
+          <div class="tools w3-theme-l5">
+            <div class='tool_sc w3-theme-l4 w3-opacity'>
+              <b>Scenario filter:</b>
+              <input v-model="pipelineFilter" placeholder="filter">
+            </div>
+            <div class='tool_timer w3-theme-l4 w3-opacity'>
+              <b>Next update:&nbsp;</b>{{ timer }}&nbsp;/&nbsp;{{ actualRefresh }}
+              <i v-if="! optimizedRefresh">
+                (Please set filter or optimize it to have a better update time)
+              </i>
+            </div>
+            <div class='tool_new w3-theme-l4'>
+              <a v-bind="{ href: newPipelineUrl }" target='_blank'>
+                <div class='fab fa-gitlab w3-text-orange w3-large w3-statusIcon'></div>
+                New pipeline
+              </a>
+            </div>
+          </div>
+          <div v-for="id in sortedPipelinesIds">
+            <div class='pipeline w3-theme-l5'>
+              <div class='pipeline_header w3-center w3-theme-l4 w3-display-container '>
+                <a v-bind="{ href: pipelines[id].url }" target='_blank'>
+                  <div class='pipeline_statusIcon w3-xxlarge statusIcon w3-padding w3-display-middle'
+                      v-bind:class="[ pipelines[id].statusIcon ]"></div></a>
+                <div class='pipeline_scenario w3-opacity'>{{ pipelines[id].scenario }}</div>
+                <div class='pipeline_branch'>{{ pipelines[id].branch }}</div>
+                <div class='pipeline_date'>{{ pipelines[id].date }}</div>
+                <div class='pipeline_time'>{{ pipelines[id].time }}</div>
+                <div class='pipeline_duration'>{{ Math.round(pipelines[id].details.duration/60) }} min</div>
+                <div class='pipeline_user_icon w3-padding'>
+                  <img v-bind="{ src:pipelines[id].userAvatar, alt:pipelines[id].user}"></img>
+                </div>
+              </div>
+              <div class='pipeline_stages w3-theme-l4'>
+                <div v-for="stage in pipelines[id].stages">
+                  <div class='stage'>
+                    <div class='stage_name w3-opacity'>{{ stage.name }}</div>
+                    <div v-for='job in stage.jobs'>
+                      <div class='w3-round w3-theme-l5 w3-btn w3-padding-small w3-block'>
+                        <div v-if="!job.internal">
+                          <div class='job'>
+                            <div class='job_statusIcon w3-large statusIcon'
+                                  v-bind:class="[ job.statusIcon ]"
+                                  @mouseover="mouseOverJob(job)"
+                                  @mouseleave="mouseLeaveJob(job)"
+                                  v-on:click="jobAction(job)"
+                                  ></div>
+                            <div class='job_name'
+                                 v-on:click="jobDetails($event, job)">
+                                 {{ job.shortname }}</div>
+                          </div>
+                        </div>
+                        <div v-if="job.internal">
+                          <div class='job'>
+                            <div class='job_statusIcon w3-large statusIcon'
+                                  v-bind:class="[ job.statusIcon ]"
+                                  @mouseover="mouseOverJob(job)"
+                                  @mouseleave="mouseLeaveJob(job)"
+                                  v-on:click="jobAction(job)"></div>
+                            <div class='job_name'>
+                              <a v-bind="{ href: job.web_url }" target='_blank'>
+                                {{ job.shortname }}</a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class='pipeline w3-theme-l5'>
+              <div class='pipeline_loader w3-theme-l2 w3-center w3-opacity'
+                   v-on:click="loadMore()">
+                Load more pipelines
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+      <section id='alert'>
+        <div class='masq'>
+          <modal v-if="showModal" @close="showModal = false">
+            <h3 slot="header">
+              {{ title }}
+            </h3>
+            <div slot="body">
+              {{ message }}
+            </div>
+          </modal>
+        </div>
+      </section>
+
+
+      <section id='task_details'>
+        <div class='masq'>
+          <modal v-if="showModal" @close="showModal = false">
+            <h3 slot="header">
+                <div class='job_statusIcon w3-large statusIcon'
+                      v-bind:class="[ pipeline.statusIcon ]"
+                      @mouseover="mouseOverPipeline(pipeline)"
+                      @mouseleave="mouseLeavePipeline(pipeline)"
+                      v-on:click="jobAction(pipeline)"></div>
+                <a v-bind="{ href: pipeline.url }" target='_blank'>
+                  Pipeline {{ pipeline.name }} {{ pipeline.id }}
+                </a>
+                <a v-bind="{ href: pipeline.console }" target='_blank'>
+                  <div class='fa fa-terminal w3-theme-l2 w3-large w3-statusIcon'></div>
+                </a>
+
+            </h3>
+            <div slot="body">
+              <div v-if="showWaiting">
+                <div class='w3-xxlarge fa fa-sync w3-text-blue-gray statusIcon'>Loading, please wait...</div>
+              </div>
+              <div v-if="showPipeline">
+                <div v-for="stage in pipeline.stages">
+                  <div class='stage'>
+                    <div class='stage_name w3-opacity'>{{ stage.name }}</div>
+                    <div v-for='job in stage.jobs'>
+                      <div class='w3-round w3-theme-l5 w3-btn w3-block'>
+                        <a v-bind="{ href: job.web_url }" target='_blank'>
+                          <div class='job'>
+                            <div class='job_statusIcon w3-large statusIcon'
+                                  v-bind:class="[ job.statusIcon ]"></div>
+                            <div class='job_name'>{{ job.name }}</div>
+                          </div>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="chainedCiFailure">
+                <div>The pipeline was probably not triggered, check console:
+                <a v-bind="{ href: pipeline.console }" target='_blank'>
+                  <div class='fa fa-terminal w3-theme-l2 w3-large w3-statusIcon'></div>
+                </a>
+                </div>
+              </div>
+            </div>
+          </modal>
+        </div>
+      </section>
+    </div>
+    <script src="js/index.js"></script>
+  </body>
+</html>

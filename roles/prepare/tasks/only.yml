@@ -1,0 +1,57 @@
+---
+# in this file, default variable value is '-666-', I hope no one will ever
+# test the number of the beast :)
+
+- name: test condition only if the previous failed
+  when: skip_run
+  block:
+    - name: Testing 'ONLY' condition
+      debug:
+        var: condition
+
+    - name: if condition is only one word
+      block:
+        - name: check variable is present
+          include_tasks: continue.yml
+          when: lookup('env', condition)| default(False, true)
+      when: condition.split()| length == 1
+
+    - name: if condition contains '=='
+      block:
+        - name: split condition with '=='
+          set_fact:
+            cond: "{{ (condition|replace(' == ', '==')).split('==') }}"
+        - debug: msg="{{ cond[1:]| join('==') }}"
+        - name: test condition
+          include_tasks: continue.yml
+          when: (lookup('env', cond[0])| default('-666-', true)) == (
+                cond[1:]| join('=='))
+      when: condition is search('==')
+
+    - name: if condition contains '!='
+      block:
+        - name: split condition with '!='
+          set_fact:
+            cond: "{{ (condition|replace(' != ', '!=')).split('!=') }}"
+        - name: test condition
+          include_tasks: continue.yml
+          when: (lookup('env', cond[0])| default('-666-', true)) != (
+                cond[1:]| join('!='))
+      when: condition is search('!=')
+
+    - name: if condition contains 'in'
+      block:
+        - name: split condition with ' in '
+          set_fact:
+            cond: "{{ condition.split(' in ') }}"
+        - name: split list
+          set_fact:
+            inlist: |
+              {{ (cond[1]|
+                  replace(', ', ',')| replace(' ,', ',')|
+                  replace(' ]', '') | replace(']', '')|
+                  replace('[ ', '') | replace('[', '')).split(',') }}
+        - name: test condition
+          include_tasks: continue.yml
+          when: (lookup('env', cond[0])| default('-666-', true)) in inlist
+      when: condition is search(' in ')

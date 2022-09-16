@@ -1,0 +1,34 @@
+---
+##
+# Check config is prepared
+##
+- name: check 'step' is set
+  fail:
+    msg: 'Prepare role must be run before'
+  when: config is not defined
+
+
+- name: recover previous artifacts
+  when:
+    config.get_artifacts is defined and
+    config.get_artifacts
+  block:
+    ##
+    # If we get previous artifacts via url
+    ##
+    - name: Add artifacts via source
+      include_tasks: url.yml
+      when:
+        (config.get_bin is not defined or not (config.get_bin | bool))
+        and (config.ssh_access is not defined)
+        and (config.get_artifacts is string)
+
+    ##
+    # If we get previous artifacts via url
+    ##
+    - name: Add artifacts via binary
+      include_tasks: binary.yml
+      when:
+        (config.get_bin is defined and (config.get_bin | bool))
+        or (config.ssh_access is defined)
+        or (config.get_artifacts is not string)

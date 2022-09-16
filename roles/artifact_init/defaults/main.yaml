@@ -1,0 +1,2 @@
+---
+step: "{{ lookup('env', 'CONFIG_NAME') | default('config', true )}}"

@@ -1,0 +1,180 @@
+---
+##
+# Warn if log level is high
+##
+- name: Warn if log level is high
+  debug:
+    msg: "{{ msg.split('\n') }}"
+    verbosity: 3
+  vars:
+    msg: |
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! Log level is HIGH  !                                                 !!
+      !! Some sensitive data may be visible to everyone.                      !!
+      !! Don't forget to clean the task output !                              !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+##
+# get the config
+##
+
+- name: get artifact_src if we refer to a previous one
+  when: artifacts_src is defined
+  uri:
+    url: "{{ artifacts_src }}"
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    dest: "{{ playbook_dir }}/artifacts.zip"
+
+- name: unzip get_artifact archive
+  when: artifacts_src is defined or artifacts_bin is defined
+  unarchive:
+    src: "{{ playbook_dir }}/artifacts.zip"
+    dest: "{{ playbook_dir }}"
+    remote_src: "yes"
+
+- name: delete archive
+  file:
+    path: "{{ playbook_dir }}/artifacts.zip"
+    state: absent
+
+- name: create artifacts folders
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0775
+  when: item[-1] == '/'
+  with_items: "{{ vars[lookup( 'env', 'CI_JOB_NAME')].artifacts.paths }}"
+
+- name: ensure configs can be written
+  file:
+    path: "{{ playbook_dir }}/{{ item }}"
+    mode: 0660
+  ignore_errors: true
+  with_items:
+    - vars/pdf.yml
+    - vars/idf.yml
+    - vars/certificates.yml
+    - vars/vaulted_ssh_credentials.yml
+    - vars/ssh_gateways.yml
+
+- name: get the infra config name
+  set_fact:
+    infra_config: "{{ config.infra | default(inventory_hostname) }}"
+
+- name: get the infra PDF/IDF
+  when: infra_config != 'NONE'
+  block:
+    - name: get PDF configs
+      uri:
+        url: >-
+          {{ config.api }}/repository/files/{{
+          [config.path | default(''), 'config'] |
+          filepath(infra_config, '.yaml') }}?ref={{ config.branch }}
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+        status_code: 200
+        return_content: yes
+      register: pdf_get
+
+    - name: save PDF config
+      copy:
+        content: "{{ pdf_get.json.content | b64decode }}"
+        dest: "{{ playbook_dir }}/vars/pdf.yml"
+        force: true
+        mode: 0660
+        decrypt: false
+
+    - name: get IDF configs
+      uri:
+        url: >-
+          {{ config.api }}/repository/files/{{ [config.path | default(''),
+          'config'] | filepath('idf-', infra_config, '.yaml')
+          }}?ref={{ config.branch }}
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+        status_code: 200
+        return_content: yes
+      register: idf_get
+
+    - name: save IDF config
+      copy:
+        content: "{{ idf_get.json.content | b64decode }}"
+        dest: "{{ playbook_dir }}/vars/idf.yml"
+        force: true
+        mode: 0660
+        decrypt: false
+
+- name: get certificate
+  uri:
+    url: >-
+      {{ config.api }}/repository/files/{{
+      [config.path | default(''), 'certificats']
+      | filepath(config.certificates) }}?ref={{ config.branch }}
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    status_code: 200
+    return_content: yes
+  register: certs_get
+  when: config.certificates is defined
+
+- name: save certificate
+  copy:
+    content: "{{ certs_get.json.content | b64decode }}"
+    dest: "{{ playbook_dir }}/vars/certificates.yml"
+    force: true
+    mode: 0660
+    decrypt: false
+  when: config.certificates is defined
+
+- name: get ssh credentials
+  uri:
+    url: >-
+      {{ config.api }}/repository/files/{{
+      [config.path | default(''), 'ssh_creds'] |
+      filepath(config.ssh_creds | default(ansible_ssh_creds))
+      }}?ref={{ config.branch }}
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    status_code: 200
+    return_content: yes
+  register: ssh_creds_get
+  when: config.ansible_ssh_creds is defined or ansible_ssh_creds is defined
+
+- name: save ssh credentials
+  copy:
+    content: "{{ ssh_creds_get.json.content | b64decode }}"
+    dest: "{{ playbook_dir }}/vars/vaulted_ssh_credentials.yml"
+    force: true
+    mode: 0660
+    decrypt: false
+  when: config.ansible_ssh_creds is defined or ansible_ssh_creds is defined
+
+- name: set ssh gateways config
+  uri:
+    url: >-
+      {{ config.api }}/repository/files/{{
+      [config.path | default(''), 'config/ssh_gateways']
+      | filepath(config.ssh_access) }}?ref={{ config.branch }}
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    status_code: 200
+    return_content: yes
+  register: ssh_gw_get
+  when: config.ssh_access is defined
+
+- name: save ssh gateways config
+  copy:
+    content: "{{ ssh_gw_get.json.content | b64decode }}"
+    dest: "{{ playbook_dir }}/vars/ssh_gateways.yml"
+    force: true
+    mode: 0660
+    decrypt: false
+  when: config.ssh_access is defined
+
+- name: set basic inventory
+  copy:
+    dest: "{{ playbook_dir }}/inventory/inventory"
+    content: >
+      jumphost ansible_host={{ jumphost.server }}
+      ansible_user={{ jumphost.user }} pod={{ inventory_hostname }}

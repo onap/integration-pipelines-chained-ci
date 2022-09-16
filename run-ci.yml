@@ -1,0 +1,10 @@
+---
+- hosts: all
+  connection: local
+  any_errors_fatal: true
+  vars_files:
+    - .gitlab-ci.yml
+  roles:
+    - role: prepare
+    - role: get_artifacts
+    - role: run-ci

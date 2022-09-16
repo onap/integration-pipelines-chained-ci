@@ -1,0 +1,22 @@
+### Ansible ###
+*.retry
+
+
+### Git ###
+*.orig
+
+
+
+## Python  ##
+*.pyc
+.env
+
+### Sensitive ###
+.vault
+id_rsa
+
+
+### Visual Studio Code ###
+.vscode
+**/.DS_Store
+.DS_Store

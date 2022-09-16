@@ -1,0 +1,142 @@
+##############################################################################
+# Copyright (c) 2017 Orange and others.
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+---
+### vPOD descriptor file ###
+
+details:
+  pod_owner: TNAP
+  contact: N/A
+  lab: ONAP Darmstadt
+  location: TA5
+  type: testing
+  link: http://wiki.onap.org/
+##############################################################################
+
+nodes:
+  - name: jumphost1
+    node: &nodeparams
+      flavor: "m1.medium"
+      model: ubuntu-20.04.20220308-cloud-amd64
+      type: virtual
+      vendor: openstack
+      arch: x86_64
+      cpus: 4
+      cpu_cflags: host-model
+      cores: 4
+      memory: 8G
+    disks:
+      - name: disk1
+        disk_capacity: 40G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+    remote_management: &remote_management
+      type:
+        - ipmi: NA
+      user: NA
+      pass: NA
+      address: NA
+      mac_address: NA
+    interfaces: &interfaces
+      - mac_address:
+        name: nic1
+        speed:
+        features:
+  - name: control01
+    node: &controlparams
+      flavor: "m1.xlarge"
+      type: virtual
+      vendor: openstack
+      model: ubuntu-20.04.20220308-cloud-amd64
+      arch: x86_64
+      cpus: 8
+      cpu_cflags: host-model
+      cores: 8
+      memory: 16G
+    disks: &disks
+      - name: disk1
+        disk_capacity: 160G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+      - name: disk-docker
+        disk_capacity: 100G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+      - name: disk-nfs
+        disk_capacity: 100G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+      - name: disk-db
+        disk_capacity: 40G
+        disk_type: qcow2
+        disk_interface: ssd
+        disk_rotation:
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute01
+    node: &computeparams
+      flavor: "m2.large"
+      type: virtual
+      vendor: openstack
+      model: Ubuntu_2004_20220124
+      arch: x86_64
+      cpus: 8
+      cpu_cflags: host-model
+      cores: 8
+      memory: 40G
+    disks: &diskWorker
+      - name: disk1
+        disk_capacity: 40G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+      - name: disk-docker
+        disk_capacity: 100G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute02
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute03
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute04
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute05
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute06
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute07
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: compute08
+    node: *computeparams
+    disks: *diskWorker
+    remote_management: *remote_management
+    interfaces: *interfaces

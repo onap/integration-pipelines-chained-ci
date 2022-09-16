@@ -1,0 +1,270 @@
+---
+
+##
+# Prepare base of variables to send
+##
+- name: prepare variables to sent
+  set_fact:
+    params:
+      {
+        'token': "{{ config.trigger_token }}",
+        'ref': "{{ config.branch }}",
+        'variables[source_job_name]': "{{ step }}",
+        'variables[pod]': "{{ inventory_hostname }}",
+        'variables[jumphost]': "{{ jumphost }}",
+      }
+
+##
+# Prepare the artifacts to get
+##
+
+- name: add bin artifacts param
+  when: artifacts_bin is defined
+  set_fact:
+    params:
+      "{{ params|combine({'variables[artifacts_bin]': artifacts_bin }) }}"
+
+- name: add src artifacts param
+  when: artifacts_src is defined
+  set_fact:
+    params:
+      "{{ params|combine({'variables[artifacts_src]': artifacts_src }) }}"
+
+- name: ensure artifacts.zip is not present
+  file:
+    path: "{{ playbook_dir }}/artifacts.zip"
+    state: absent
+
+- name: set healthchecks base url
+  set_fact:
+    base_url: "{{ gitlab.healthchecks_url }}/ping/{{ healthchecks_id }}"
+  when: healthchecks_id is defined
+
+##
+# Run the step
+##
+- name: Run step
+  block:
+    ##
+    # add step parameters in the parameters to send
+    ##
+    - name: Add step parameters
+      set_fact:
+        params: "{{ params|combine({key: value}) }}"
+      vars:
+        key: "variables[{{ item.key }}]"
+        value: "{{ item.value }}"
+      with_dict: "{{ config.parameters }}"
+      when: config.parameters is defined and config.parameters != None
+
+    ##
+    # add NOVAULT_LIST parameter in the parameters to send
+    ##
+    - name: Add NOVAULT_LIST parameter
+      set_fact:
+        params: "{{ params|combine({key: value}) }}"
+      vars:
+        key: "variables[NOVAULT_LIST]"
+        value: "{{ config.novault |join(\"\n\") }}"
+      when: config.novault is defined
+
+    ##
+    # Trigger the pipeline
+    ##
+    - name: "Trigger a new pipeline for step {{ step }}"
+      uri:
+        url: "{{ config.api }}/trigger/pipeline"
+        method: POST
+        status_code: 201
+        body_format: raw
+        body: "{{ params| urlencode }}"
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+      register: trigger_out
+
+    - name: set pipeline url
+      set_fact:
+        pipeline_url: "{{ config.url }}/pipelines/{{ trigger_out.json.id }}"
+        api_pipeline_url: "{{ config.api }}/pipelines/{{ trigger_out.json.id }}"
+
+    - name: Echo running pipeline link
+      debug:
+        msg: "{{ msg.split('\n') }}"
+      vars:
+        msg: |
+          ******************************************************************
+          * Pipeline triggered for step '{{ step }}'
+          * {{ pipeline_url }}
+          ******************************************************************
+
+    - name: set grafana start point
+      include_tasks: grafana_start.yml
+      when: grafana is defined
+
+    - name: "Wait for pipeline result {{ step }}"
+      uri:
+        url: "{{ config.api }}/pipelines/{{ trigger_out.json.id }}"
+        method: GET
+        status_code: 200
+        return_content: 'yes'
+        headers:
+          PRIVATE-TOKEN:
+            "{{ config.api_token|default(gitlab.private_token, 'true') }}"
+      register: pipeline_out
+      retries: "{{ config.timeout }}"
+      delay: "{{ gitlab.pipeline.delay }}"
+      until: (((pipeline_out.json
+             |default({'status':'unknown'})).status
+             |default('unknown'))
+             not in ['created', 'waiting_for_resource', 'preparing',
+             'pending', 'running', 'unknown']) or (
+             pipeline_out.status == 401
+             )
+
+
+    - name: Exit -1
+      fail:
+      when: pipeline_out.json.status not in ['success']
+
+    ##
+    # When finished, recover an artifact if requested
+    ##
+    - name: pull artifacts_src
+      when:
+        config.pull_artifacts is defined and config.pull_artifacts != None
+      block:
+        - name: "Get job id for the artifact to get"
+          uri:
+            url: >-
+              {{ config.api
+              }}/pipelines/{{ trigger_out.json.id }}/jobs?scope[]=success
+            method: GET
+            headers:
+              PRIVATE-TOKEN:
+                "{{ config.api_token|default(gitlab.private_token, 'true') }}"
+          register: pipeline_success_jobs
+
+        - name: download job artifact
+          uri:
+            url: "{{ config.api }}/jobs/{{ job_id[0] }}/artifacts"
+            headers:
+              PRIVATE-TOKEN:
+                "{{ config.api_token|default(gitlab.private_token, 'true') }}"
+            dest: "{{ playbook_dir }}/artifacts.zip"
+          vars:
+            job_id: >-
+              {{ pipeline_success_jobs.json |json_query(
+              '[?name==`'+ config.pull_artifacts +'`].id') }}
+
+        - name: remove actual artifacts
+          file:
+            path: "{{ item }}"
+            state: absent
+          when: item[-1] == '/'
+          with_items:
+            "{{ vars[lookup( 'env', 'CI_JOB_NAME')].artifacts.paths }}"
+
+        - name: create artifacts folders
+          file:
+            path: "{{ item }}"
+            state: directory
+            recurse: true
+            mode: 0775
+          when: item[-1] == '/'
+          with_items:
+            "{{ vars[lookup( 'env', 'CI_JOB_NAME')].artifacts.paths }}"
+
+        - name: unarchive artifacts
+          unarchive:
+            src: "{{ playbook_dir }}/artifacts.zip"
+            dest: "{{ playbook_dir }}"
+            remote_src: "yes"
+
+        - name: trigger OK healthchecks
+          uri:
+            url: "{{ base_url }}"
+          when: healthchecks_id is defined
+          ignore_errors: true
+
+        - name: update grafana stop point
+          include_tasks: grafana_stop.yml
+          vars:
+            result: "{{ pipeline_out.json.status }}"
+            text: "<a href={{ pipeline_url }}>{{ step }}</a> succeeded"
+          when: grafana is defined and grafana_events is defined
+
+  ##
+  # If something failed, print the jobs that failed
+  ##
+  rescue:
+    - name: print last pipeline result for forensic
+      debug:
+        var: pipeline_out
+        verbosity: 3
+
+    - name: update grafana stop point
+      include_tasks: grafana_stop.yml
+      vars:
+        result: "{{ pipeline_out.json.status }}"
+        text: "<a href={{ pipeline_url }}>{{ step }}</a> failed"
+      when: grafana is defined and grafana_events is defined
+
+    - name: trigger Failed healthcheck
+      uri:
+        url: "{{ base_url }}/fail"
+      when: healthchecks_id is defined
+
+    - name: "Show last pipeline_out value"
+      debug:
+        msg: "{{ pipeline_out.json | default('No pipeline out') }}"
+        verbosity: 3
+
+    - name: "RESCUE - Get jobs list that failed"
+      uri:
+        url: "{{ config.api }}/pipelines/{{ trigger_out.json.id }}/jobs/"
+        method: GET
+        status_code: 200
+        return_content: 'yes'
+        headers:
+          PRIVATE-TOKEN:
+            "{{ config.api_token|default(gitlab.private_token, 'true') }}"
+      register: jobs_list
+
+    - name: RESCUE - filter failed jobs
+      set_fact:
+        failed_jobs:
+          "{{ failed_jobs | default({}) | combine({ item.id:
+             {'stage': item.stage,
+              'name': item.name,
+              'status': item.status,
+              'duration': item.duration,
+              'url': url
+             }})}}"
+      vars:
+        url: "{{ config.url }}/-/jobs/{{ item.id }}"
+      when: item.status not in ['success', 'skipped']
+      with_items: "{{ jobs_list.json }}"
+
+    - name: RESCUE - run failed !
+      when: true
+      fail:
+        msg: "{{ msg.split('\n') }}"
+      vars:
+        msg: |
+          ******************************************************************
+          * Oh ! NO !!! Pipeling of the project failed !!!
+          * -----------------------
+          * Step: {{ step }}
+          * Project: {{ config.project }}
+          * Status: {{ pipeline_out.json.status }}
+          * Pipeline: '{{ pipeline_url }}'
+          * API pipeline url: '{{ api_pipeline_url }}'
+          * Failed jobs:
+          {% for job_id, job_status in failed_jobs.items() -%}
+          *   - id: {{ job_id }}
+          *     name: {{ job_status.stage }}/{{ job_status.name }}
+          *     status: {{ job_status.status }}
+          *     duration: {{ job_status.duration }}
+          *     link: {{ job_status.url }}
+          {% endfor %}
+          ******************************************************************
