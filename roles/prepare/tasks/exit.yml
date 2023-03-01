@@ -1,0 +1,13 @@
+---
+
+- name: we have to end this role
+  debug:
+    msg: "{{ msg.split('\n') }}"
+  vars:
+    msg: |
+      **************************************************************************
+      ** We finish the play here
+      **   REASON = '{{ condition }}'
+      **************************************************************************
+
+- meta: end_play

@@ -14,7 +14,7 @@ runner:
   tags:
     - "$RUNNER_TAG"
   env_vars:
-    CHAINED_CI_SRC: https://gitlab.devops.telekom.de/tnap/onapcommunity/integrationproject/onapdeployment/chained-ci.git  #TODO: Chained CI on onap gitlab
+    CHAINED_CI_SRC: https://gitlab.com/integration/pipelines/chained-ci.git  #TODO: Chained CI on onap gitlab
   docker_proxy:
   image: registry.gitlab.com/orange-opensource/lfn/ci_cd/docker_ansible
   image_tag: 2.7.10-alpine
@@ -22,31 +22,39 @@ runner:
 gitlab:
   pipeline:
     delay: 15
-  base_url: https://gitlab.devops.telekom.de
-  api_url: https://gitlab.devops.telekom.de/api/v4
+  base_url: https://gitlab.com
+  api_url: https://gitlab.com/api/v4
   private_token: "{{ lookup('env','CI_private_token') }}"
 
   git_projects:
     config:
       stage: config
-      url: https://gitlab.devops.telekom.de/tnap/onapcommunity/integrationproject/onapdeployment/chained-ci.git #TODO Chained CI on onap gitlab
-      api: https://gitlab.devops.telekom.de/api/v4/projects/36215
+      url: https://gitlab.com/onap/integration/pipelines/chained-ci.git #TODO Chained CI on onap gitlab
+      api: https://gitlab.com/api/v4/projects/39992873
       branch: "{{ lookup('env','config_branch')|default('master', true) }}"
       path: pod_config
 
-    trigger:
-      stage: apps
+    build_integration:
+      stage: infra_install
+      api: https://gitlab.com/api/v4/projects/24365265
+      url: https://gitlab.com/Orange-OpenSource/lfn/onap/build-integration
       trigger_token: !vault |
         $ANSIBLE_VAULT;1.1;AES256
-        64386138616464653132353964363032346464373363323366616436346263323230353961363263
-        3562653664303631323134313864393364636538643430640a363766316230633932376466643333
-        64386331633737623164313831633537666638623534663736313331313266396438306266636632
-        3532313263396532300a306661393438613734323064313064343361363763636664393231363934
-        37633335396563623462653935393236356139303864646135303935373937623739
-      branch: "{{ lookup('env','CI_BUILD_REF_NAME')|default('master', true) }}"
+        61313463643234303366353965653038363162386565613266326237373634326465
+        3365323331306531363834326264613736393836633362323635323365300a333963
+        30346666663636653238306265393833663463393538613466633831383234336332
+        3239613634383063386635653836626634633136623831396362640a363332666465
+        66396131663861326163666536346336356430303933363035373830363162373036
+        323433383436616461373231386464666232353932383162
+      branch: "{{ lookup('env','build_integration_branch')|default('master', true) }}"
+      pull_artifacts:
+      timeout: 1400
+      get_encrypt: true
+      get_bin: true
       parameters:
-        ansible_verbose: "{{ lookup('env','ansible_verbose') }}"
-        RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
+        GERRIT_REVIEW: "{{ lookup('env','GERRIT_REVIEW') }}"
+        GERRIT_PATCHSET: "{{ lookup('env','GERRIT_PATCHSET') }}"
+        PROJECT: "{{ lookup('env','PROJECT') }}"
 
     cloud-infra:
       stage: infra_install
@@ -68,53 +76,6 @@ gitlab:
         ansible_verbose: "{{ lookup('env','ansible_verbose') }}"
         RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
         USER_ROLE: "{{ lookup('env','USER_ROLE') }}"
-
-    # rke-install:
-    #   stage: virt_install
-    #   api: https://gitlab.devops.telekom.de/api/v4/projects/36232
-    #   url: https://gitlab.devops.telekom.de/tnap/onapcommunity/integrationproject/onapdeployment/rke-install.git
-    #   trigger_token: !vault |
-    #     $ANSIBLE_VAULT;1.1;AES256
-    #     31366336336230663530613735643963626665633538643838353762386364363632393039623165
-    #     3939326531333765393964373431633961656663303933340a393934326464646436313839666662
-    #     33313662333662386362316666316232623364346134646165326562303439373861616162653938
-    #     6130363366366634320a363231326234346530333665353134616435643136353638613332313061
-    #     34353035336437306130396366343566376362366630613233613464663962626539
-    #   branch: "{{ lookup('env','vim_branch')|default('master', true) }}"
-    #   get_artifacts:
-    #   pull_artifacts: "postconfigure"
-    #   timeout: 900
-    #   parameters:
-    #     ANSIBLE_VERBOSE: "{{ lookup('env','ansible_verbose') }}"
-    #     docker_version: "{{ lookup('env','docker_version') }}"
-    #     kubernetes_release: "{{ lookup('env','kubernetes_release') }}"
-    #     kubespray_version: "{{ lookup('env','kubespray_version') }}"
-    #     helm_version: "{{ lookup('env','helm_version') }}"
-    #     RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
-
-    kubespray-install:
-      stage: virt_install
-      api: https://gitlab.devops.telekom.de/api/v4/projects/36231 #TODO k8s install on onap gitlab
-      url: https://gitlab.devops.telekom.de/tnap/onapcommunity/integrationproject/onapdeployment/k8s-install.git #TODO k8s install on onap gitlab
-      trigger_token: !vault |
-        $ANSIBLE_VAULT;1.1;AES256
-        64376532616532636231396662336134396561643133323432393330623132353063643635336665
-        6232643832343133366333656438616463616336613331320a313166366234356537383639303133
-        64353338653639623034313735653561356362366236636363376431336264653332356134616335
-        3539626665613336350a313035636665383939656461306664386135623139346531343935373763
-        34323539663261363634373031383838376362623135386565643465376661616534
-      branch: "{{ lookup('env','vim_branch')|default('master', true) }}"
-      get_artifacts:
-      pull_artifacts: "postconfigure"
-      timeout: 600
-      get_bin: true
-      parameters:
-        ANSIBLE_VERBOSE: "{{ lookup('env','ansible_verbose') }}"
-        docker_version: "{{ lookup('env','docker_version') }}"
-        kubernetes_release: "{{ lookup('env','kubernetes_release') }}"
-        kubespray_version: "{{ lookup('env','kubespray_version') }}"
-        helm_version: "{{ lookup('env','helm_version') }}"
-        RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
 
     onap-install:
       stage: apps
@@ -171,23 +132,96 @@ gitlab:
         PROJECT: "{{ lookup('env','PROJECT') }}"
         DEBUG: true
         RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
-        #EXT_NET: "admin-daily-{{ lookup('env','onap-testing_branch')|default('master', true) }}"
 
-    # onap-operate:
-    #   stage: check
-    #   api: https://gitlab.devops.telekom.de/api/v4/projects/36337
-    #   url: https://gitlab.devops.telekom.de/tnap/onapcommunity/labtools/tenantaccess.git
-    #   trigger_token: !vault |
-    #     $ANSIBLE_VAULT;1.1;AES256
-    #     31646539393535313462666661336239336234333436376438333165383264613535323534373665
-    #     3737313238313139613564326639393239333839636531350a323735343565656665386666346237
-    #     39663539393636653739343762613233363862393630336135656633333565393535366561613735
-    #     3934393735383266650a326530636434633163363631316634323966383662623664316331343465
-    #     32636161376133393765633130326134333661666239323835633164316433636431
-    #   branch: "{{ lookup('env','onap-operate_branch')|default('master', true) }}"
-    #   pull_artifacts:
-    #   timeout: 300
-    #   parameters:
-    #     ANSIBLE_VERBOSE: "{{ lookup('env','ansible_verbose') }}"
-    #     RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
+    kubespray-install:
+      stage: virt_install
+      api: https://gitlab.devops.telekom.de/api/v4/projects/36231 #TODO k8s install on onap gitlab
+      url: https://gitlab.devops.telekom.de/tnap/onapcommunity/integrationproject/onapdeployment/k8s-install.git #TODO k8s install on onap gitlab
+      trigger_token: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        64376532616532636231396662336134396561643133323432393330623132353063643635336665
+        6232643832343133366333656438616463616336613331320a313166366234356537383639303133
+        64353338653639623034313735653561356362366236636363376431336264653332356134616335
+        3539626665613336350a313035636665383939656461306664386135623139346531343935373763
+        34323539663261363634373031383838376362623135386565643465376661616534
+      branch: "{{ lookup('env','vim_branch')|default('master', true) }}"
+      get_artifacts:
+      pull_artifacts: "postconfigure"
+      timeout: 600
+      get_bin: true
+      parameters:
+        ANSIBLE_VERBOSE: "{{ lookup('env','ansible_verbose') }}"
+        docker_version: "{{ lookup('env','docker_version') }}"
+        kubernetes_release: "{{ lookup('env','kubernetes_release') }}"
+        kubespray_version: "{{ lookup('env','kubespray_version') }}"
+        helm_version: "{{ lookup('env','helm_version') }}"
+        RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"
 
+    oom:
+      stage: apps
+      api: https://gitlab.com/api/v4/projects/6550110
+      url: https://gitlab.com/Orange-OpenSource/lfn/onap/onap_oom_automatic_installation/
+      trigger_token: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        363633373665306138306339646434343366613963393165346661373436633032643430
+        326536646361313061663837633137663134306331346439313638390a38623034643463
+        626666366366633764373132373634626436666132333031303033653133613464363632
+        6363366466396136303232356639623961653637340a3136666438333263636436326463
+        616462646239323066316231346131623237646238393361643634366436356639386533
+        3632353462663933643835656364
+      branch: "{{ lookup('env','oom_deploy_branch')|default('master', true) }}"
+      pull_artifacts: postinstallation
+      timeout: 1400
+      get_encrypt: true
+      get_bin: true
+      parameters:
+        GERRIT_REVIEW: "{{ lookup('env','GERRIT_REVIEW') }}"
+        GERRIT_PATCHSET: "{{ lookup('env','GERRIT_PATCHSET') }}"
+        OOM_BRANCH: "{{ lookup('env','OOM_BRANCH') }}"
+        OOM_GIT_REPO: "{{ lookup('env','OOM_GIT_REPO') }}"
+        OOM_ON_GITLAB: "{{ lookup('env','OOM_ON_GITLAB') }}"
+        OOM_VERSION: "{{ lookup('env','OOM_VERSION') }}"
+        PROJECT: "{{ lookup('env','PROJECT') }}"
+        ANSIBLE_VERBOSE: "{{ lookup('env','ansible_verbose') }}"
+        TEST_RESULT_DB_URL: "http://onap.api.testresults.opnfv.fr/api/v1/results"
+
+    xtesting-onap:
+      stage: check
+      api: https://gitlab.com/api/v4/projects/10614465
+      url: https://gitlab.com/Orange-OpenSource/lfn/onap/xtesting-onap
+      trigger_token: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        376564383532616465343061313138373763333833653463333165313062623262303930
+        626531653332333063663134393038623661646430633335393266360a35653732613063
+        333338356136656332323337623534663964653234613836336530303564653463613838
+        3566306635613566373036356135646364613034660a3037323932396165363334616264
+        393938316636316437303261323066326530393363303365623036316463613032343533
+        3234633838343731333166616632
+      branch: "{{ lookup('env','xtesting-onap_branch')|default('master', true) }}"
+      get_artifacts: vim
+      pull_artifacts:
+      timeout: 1400
+      get_encrypt: true
+      get_bin: true
+      parameters:
+        GERRIT_REVIEW: "{{ lookup('env','GERRIT_REVIEW') }}"
+        GERRIT_PATCHSET: "{{ lookup('env','GERRIT_PATCHSET') }}"
+        EXPERIMENTAL: "{{ lookup('env','EXPERIMENTAL') }}"
+        ONAP_VERSION: "{{ lookup('env','OOM_BRANCH') }}"
+        DEPLOY_SCENARIO: os-nosdn-nofeature-ha
+        TEST_RESULT_DB_URL: "http://testresults.opnfv.org/onap/api/v1/results"
+        PROJECT: "{{ lookup('env','PROJECT') }}"
+
+    trigger:
+      stage: apps
+      trigger_token: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        64386138616464653132353964363032346464373363323366616436346263323230353961363263
+        3562653664303631323134313864393364636538643430640a363766316230633932376466643333
+        64386331633737623164313831633537666638623534663736313331313266396438306266636632
+        3532313263396532300a306661393438613734323064313064343361363763636664393231363934
+        37633335396563623462653935393236356139303864646135303935373937623739
+      branch: "{{ lookup('env','CI_BUILD_REF_NAME')|default('master', true) }}"
+      parameters:
+        ansible_verbose: "{{ lookup('env','ansible_verbose') }}"
+        RUNNER_TAG: "{{ lookup('env','RUNNER_TAG') }}"

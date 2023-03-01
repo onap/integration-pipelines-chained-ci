@@ -1,0 +1,244 @@
+---
+##
+# Handle different get_artifacts types
+##
+- name: value change for coherency
+  set_fact:
+    config: >-
+      {{ config|combine({'get_artifacts': [] }) }}
+  when: config.get_artifacts is not defined
+- name: value change for coherency
+  set_fact:
+    config: >-
+      {{ config|combine({'get_artifacts':
+            [{ 'name': config.get_artifacts }] }) }}
+  when: config.get_artifacts is string
+
+- debug:
+    var: config
+    verbosity: 3
+##
+# Prepare a folder for
+##
+
+- name: set previous_artifacts_folder
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ previous_artifacts_folder }}"
+    - "{{ final_artifacts_folder }}"
+
+- name: create dest folders for the jobs artifacts
+  file:
+    path: "{{ previous_artifacts_folder }}/{{ item.name }}"
+    state: directory
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+##
+# Get all artifacts job ids
+##
+- name: loop on get_artifacts
+  include_tasks: get_one_artifact.yml
+  vars:
+    artifact_job_name: "{{ item.name }}"
+    artifact_in_pipeline: "{{ item.in_pipeline | default(true) }}"
+  when: not (item.static_src | default(false))
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ artifact_job_name }}"
+
+- name: download all job artifacts
+  uri:
+    url: >-
+      {{ gitlab.api_url }}/projects/{{ lookup('env', 'CI_PROJECT_ID')
+      }}/jobs/{{ artifact_job_ids[idx] }}/artifacts
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    status_code: 200
+    dest: >-
+      {{ previous_artifacts_folder }}/{{ item.name }}/artifacts.zip
+  when: not (item.static_src | default(false))
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.name }}"
+
+- name: download all static artifacts on public projects
+  uri:
+    url: >-
+      {{ config.url }}/raw/{{ config.branch }}/{{
+      config.path | default('') }}/config/artifacts/{{
+      item.name }}.zip?inline=false
+    status_code: 200
+    dest: >-
+      {{ previous_artifacts_folder }}/{{ item.name }}/artifacts.zip
+  when: (item.static_src | default(false)) and (config.api is not defined)
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: download all static artifacts using api
+  uri:
+    url: >-
+      {{ config.api }}/repository/files/{{
+      [config.path | default('') , 'config/artifacts'] |
+      filepath(item.name, '.zip')
+      }}/raw?ref={{ config.branch }}
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    status_code: 200
+    dest: >-
+      {{ previous_artifacts_folder }}/{{ item.name }}/artifacts.zip
+  when: (item.static_src | default(false)) and (config.api is defined)
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: unarchive all artifacts
+  unarchive:
+    src: "{{ previous_artifacts_folder }}/{{ item.name }}/artifacts.zip"
+    dest: "{{ previous_artifacts_folder }}/{{ item.name }}/"
+    remote_src: "yes"
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: remove all artifacts archives
+  file:
+    path: "{{ previous_artifacts_folder }}/{{ item.name }}/artifacts.zip"
+    state: absent
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: create artifacts folders
+  file:
+    path: "{{ final_artifacts_folder }}/{{ item }}"
+    state: directory
+    recurse: true
+    mode: 0775
+  when: item[-1] == '/'
+  with_items: "{{ vars['.artifacts_root'].paths }}"
+
+- name: copy all files if no filters
+  copy:
+    decrypt: false
+    src: "{{ previous_artifacts_folder }}/{{ item.name }}/"
+    dest: "{{ final_artifacts_folder }}/"
+  when: item.limit_to is not defined or item.limit_to == None
+  loop: "{{ config.get_artifacts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: copy filtered files if filters
+  include_tasks: limit_to.yml
+  when: item.limit_to is defined
+  loop: "{{ config.get_artifacts }}"
+  vars:
+    job_name: "{{ item.name }}"
+    limit_to: "{{ item.limit_to }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+##
+# get list of files to archive
+##
+- name: get list of files to encrypt
+  find:
+    paths: "{{ final_artifacts_folder }}"
+    recurse: true
+  register: artifacts_files
+
+- name: set file list
+  set_fact:
+    files_list: "{{ artifacts_files.files | map(attribute='path')| list }}"
+
+##
+# If we encode file via ansible vault
+##
+- name: encrypt files
+  shell: >
+    ansible-vault encrypt --vault-password-file {{
+    lookup( 'env', 'VAULT_FILE') }} {{ item }}
+  register: res
+  loop: "{{ files_list }}"
+  failed_when:
+    res.rc == 1 and res.stderr != "ERROR! input is already encrypted"
+  when:
+    config.get_encrypt is defined and (config.get_encrypt | bool)
+
+
+##
+# Add ssh_gateways file if needed
+##
+
+- name: get config step parameters
+  set_fact:
+    config_step: >-
+      {{ gitlab.git_projects[
+           hostvars[inventory_hostname].scenario_steps['config'].project] |
+         combine(hostvars[inventory_hostname].scenario_steps['config']) }}
+
+- name: get ssh gateways config
+  uri:
+    url: >-
+      {{ config_step.api }}/repository/files/{{
+      [config_step.path | default(''), 'config/ssh_gateways'] |
+      filepath(config.ssh_access)
+      }}?ref={{ config_step.branch }}
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+    status_code: 200
+    return_content: yes
+  register: ssh_gw_get
+  when: config.ssh_access is defined
+
+- name: save ssh gateways config
+  copy:
+    content: "{{ ssh_gw_get.json.content | b64decode }}"
+    dest: "{{ final_artifacts_folder }}/vars/ssh_gateways.yml"
+    force: true
+    mode: 0660
+  when: config.ssh_access is defined
+
+##
+# get list of files and folders to archive
+##
+- name: set file list
+  set_fact:
+    arch_files:
+      "{{ (arch_files | default([])) +
+          [ final_artifacts_folder + '/' + item ] }}"
+  loop: "{{ vars['.artifacts_root'].paths }}"
+
+- name: Prepare artifact archive for binary transmission
+  archive:
+    path: "{{ arch_files }}"
+    dest: "{{ playbook_dir }}/artifacts.zip"
+    format: zip
+
+##
+# Set the artifact to send
+##
+- name: "Prepare artifact archive for binary transmission"
+  slurp:
+    src: artifacts.zip
+  register: slurped_artifact
+
+- name: Add artifacts bin if requested
+  set_fact:
+    artifacts_bin: "{{ slurped_artifact.content }}"
+
+##
+# Clean
+##
+- name: delete temporary folders
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ previous_artifacts_folder }}"
+    - "{{ final_artifacts_folder }}"

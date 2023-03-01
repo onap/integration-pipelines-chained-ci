@@ -1,0 +1,3 @@
+---
+ci_file: "{{ lookup('env', 'CI_FILE')
+             | default(playbook_dir +'/.gitlab-ci.yml', true)}}"

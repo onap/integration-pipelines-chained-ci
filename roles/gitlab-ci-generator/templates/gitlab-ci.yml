@@ -8,12 +8,9 @@
 ################################################################################
 
 stages:
-  - lint
-  - config
-  - infra_install
-  - virt_install
-  - apps
-  - check
+{% for stage in stages %}
+  - {{ stage }}
+{% endfor %}
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
@@ -24,7 +21,9 @@ variables:
 ################################################################################
 .runner_tags: &runner_tags
   tags:
-    - $RUNNER_TAG
+{% for tag in runner.tags %}
+    - {{ tag }}
+{% endfor %}
 
 .syntax_checking: &syntax_checking
   only:
@@ -48,7 +47,9 @@ variables:
     expire_in: 1 yrs
 
 .runner_env: &runner_env
-  CHAINED_CI_SRC: "https://gitlab.com/integration/pipelines/chained-ci.git"
+{% for var_name, var_value in runner.env_vars.items()|default({'foo': 'bar'}) %}
+  {{ var_name }}: "{{ var_value }}"
+{% endfor %}
 
 ################################################################################
 # Linting
@@ -59,7 +60,7 @@ yaml_checking:
   <<: *runner_tags
   variables:
     <<: *runner_env
-  image: sdesbure/yamllint:latest
+  image: {{ runner.docker_proxy }}sdesbure/yamllint:latest
   script:
     - >
       yamllint -d "line-length: {
@@ -74,16 +75,17 @@ ansible_linting:
   <<: *runner_tags
   variables:
     <<: *runner_env
-  image: sdesbure/ansible-lint:latest
+  image: {{ runner.docker_proxy }}sdesbure/ansible-lint:latest
   script:
     - ansible-lint -x ANSIBLE0010,ANSIBLE0013 run-ci.yml
 
+{% if not (disable_pages | default(false)) %}
 ################################################################################
 # Pages
 ################################################################################
 
 pages:
-  image: registry.gitlab.com/orange-opensource/lfn/ci_cd/docker_ansible:2.7.10-alpine
+  image: {{ runner.docker_proxy }}{{ runner.image }}:{{ runner.image_tag }}
   stage: lint
   <<: *runner_tags
   variables:
@@ -103,6 +105,7 @@ pages:
     - schedules
     - web
 
+{% endif %}
 
 ################################################################################
 # Jobs
@@ -117,7 +120,7 @@ pages:
 .set_config: &set_config
   <<: *runner_tags
   <<: *vault_mgmt
-  image: registry.gitlab.com/orange-opensource/lfn/ci_cd/docker_ansible:2.7.10-alpine
+  image: {{ runner.docker_proxy }}{{ runner.image }}:{{ runner.image_tag }}
   script:
     - >
       ansible-playbook -i pod_inventory/inventory --limit ${pod}
@@ -127,7 +130,7 @@ pages:
 .run_ci: &run_ci
   <<: *runner_tags
   <<: *vault_mgmt
-  image: registry.gitlab.com/orange-opensource/lfn/ci_cd/docker_ansible:2.7.10-alpine
+  image: {{ runner.docker_proxy }}{{ runner.image }}:{{ runner.image_tag }}
   script:
     - >
       ansible-playbook -i pod_inventory/inventory --limit ${pod}
@@ -138,93 +141,64 @@ pages:
 .trigger: &trigger
   <<: *runner_tags
   <<: *vault_mgmt
-  image: registry.gitlab.com/orange-opensource/lfn/ci_cd/docker_ansible:2.7.10-alpine
+  image: {{ runner.docker_proxy }}{{ runner.image }}:{{ runner.image_tag }}
   script:
     - >
       ansible-playbook -i pod_inventory/inventory --limit ${pod}
       --vault-password-file ${PWD}/${VAULT_FILE}
       ${ansible_verbose} --extra-vars "step=trigger" trigger_myself.yml
 
+{% for pipeline in groups['all'] %}
 ################################################################################
-# onap-daily-unh-oom-master
+# {{ pipeline }}
 ################################################################################
 
-.onap-daily-unh-oom-master_global: &onap-daily-unh-oom-master_global
+.{{ pipeline }}_global: &{{ pipeline }}_global
   variables:
-    pod: onap-daily-unh-oom-master
+    pod: {{ pipeline }}
     <<: *runner_env
+{% if hostvars[pipeline].environment is defined %}
   environment:
-    name: unh/k8s8-8
+    name: {{ hostvars[pipeline].environment }}
+{% endif %}
   only:
     variables:
-      - $POD == "onap-daily-unh-oom-master"
+      - $POD == "{{ pipeline }}"
+{% if hostvars[pipeline].inpod is defined %}
+      - $INPOD == "{{ hostvars[pipeline].inpod }}"
+{% endif %}
     refs:
       - web
       - schedules
       - triggers
 
-config:onap-daily-unh-oom-master:
-  stage: config
-  <<: *onap-daily-unh-oom-master_global
+{% for stage in stages %}
+{% for task in hostvars[pipeline].scenario_steps %}
+{% if hostvars[pipeline].scenario_steps[task].stage | default(
+    gitlab.git_projects[hostvars[pipeline].scenario_steps[task].project].stage
+  ) == stage %}
+{{ task }}:{{ pipeline }}:
+  stage: {{ stage }}
+  <<: *{{ pipeline }}_global
+{% if hostvars[pipeline].scenario_steps[task].project == 'config' %}
   <<: *set_config
-  <<: *artifacts_longexpire
-infra_deploy:onap-daily-unh-oom-master:
-  stage: infra_install
-  <<: *onap-daily-unh-oom-master_global
+{% elif hostvars[pipeline].scenario_steps[task].project == 'trigger' %}
+  <<: *trigger
+{% else %}
   <<: *run_ci
-  <<: *artifacts_longexpire
-virt_install:onap-daily-unh-oom-master:
-  stage: virt_install
-  <<: *onap-daily-unh-oom-master_global
-  <<: *run_ci
-  <<: *artifacts_longexpire
-apps_deploy:onap-daily-unh-oom-master:
-  stage: apps
-  <<: *onap-daily-unh-oom-master_global
-  <<: *run_ci
-  <<: *artifacts_longexpire
-apps_test:onap-daily-unh-oom-master:
-  stage: check
-  <<: *onap-daily-unh-oom-master_global
-  <<: *run_ci
+{% endif %}
+{% if (hostvars[pipeline].scenario_steps[task].pull_artifacts
+    | default(gitlab.git_projects[hostvars[pipeline].scenario_steps[task].project].pull_artifacts)
+    | default(false))
+    or task == 'config' %}
+  <<: *artifacts{% if hostvars[pipeline].longlife_artifact | default(false) | bool %}_longexpire{% endif %}
 
-################################################################################
-# onap_oom_gating_azure_3
-################################################################################
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endfor %}
 
-.onap_oom_gating_azure_3_global: &onap_oom_gating_azure_3_global
-  variables:
-    pod: onap_oom_gating_azure_3
-    <<: *runner_env
-  environment:
-    name: azure/onap_gating_3/oom_gating
-  only:
-    variables:
-      - $POD == "onap_oom_gating_azure_3"
-    refs:
-      - web
-      - schedules
-      - triggers
-
-config:onap_oom_gating_azure_3:
-  stage: config
-  <<: *onap_oom_gating_azure_3_global
-  <<: *set_config
-  <<: *artifacts
-build_integration:onap_oom_gating_azure_3:
-  stage: infra_install
-  <<: *onap_oom_gating_azure_3_global
-  <<: *run_ci
-onap_deploy:onap_oom_gating_azure_3:
-  stage: apps
-  <<: *onap_oom_gating_azure_3_global
-  <<: *run_ci
-  <<: *artifacts
-onap_test:onap_oom_gating_azure_3:
-  stage: check
-  <<: *onap_oom_gating_azure_3_global
-  <<: *run_ci
-
+{% endfor %}
 ##
 # End of generated file
 ##
