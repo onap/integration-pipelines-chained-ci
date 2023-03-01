@@ -1,0 +1,15 @@
+---
+
+- name: we have to continue this role
+  debug:
+    msg: "{{ msg.split('\n') }}"
+  vars:
+    msg: |
+      **************************************************************************
+      ** We continue the play
+      **   REASON = '{{ condition }}'
+      **************************************************************************
+
+- name: Do not skip the run of the play
+  set_fact:
+    skip_run: false

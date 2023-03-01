@@ -1,0 +1,75 @@
+---
+- name: check 'step' is set
+  fail:
+    msg: 'Step must be defined ! (use --extra-vars "step=test1")'
+  when: step is not defined
+
+- name: get default step parameters
+  set_fact:
+    config: >-
+      {{ gitlab.git_projects[
+           hostvars[inventory_hostname].scenario_steps[step].project] |
+         combine(hostvars[inventory_hostname].scenario_steps[step]) }}
+
+- name: merge step parameters
+  set_fact:
+    config: >-
+      {{ config| combine(
+         {'parameters': config.parameters|
+          combine(config.extra_parameters)}) }}
+  when: config.extra_parameters is defined
+
+
+##
+# Prepare base of variables to send
+##
+- name: prepare variables to sent
+  set_fact:
+    params:
+      {
+        'token': "{{ config.trigger_token}}",
+        'ref': "{{ config.branch }}",
+        'variables[source_job_name]': "{{ step }}",
+        'variables[triggered_from]': "{{ lookup('env','CI_JOB_NAME') }}",
+        'variables[INPOD]': "{{ inventory_hostname }}",
+        'variables[jumphost]': "{{ jumphost }}",
+      }
+
+- name: Add step parameters
+  set_fact:
+    params: "{{ params|combine({key: value}) }}"
+  vars:
+    key: "variables[{{ item.key }}]"
+    value: "{{ item.value }}"
+  with_dict: "{{ config.parameters }}"
+  when: config.parameters is defined
+
+
+##
+# Trigger the pipeline
+##
+- name: "Trigger a new pipeline for step {{ step }}"
+  uri:
+    url: >-
+      {{ gitlab.api_url}}/projects/{{ lookup( 'env', 'CI_PROJECT_ID')
+      }}/trigger/pipeline
+    method: POST
+    status_code: 201
+    body_format: raw
+    body: "{{params| urlencode}}"
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+  register: trigger_out
+
+- name: Echo running pipeline link
+  debug:
+    msg: "{{ msg.split('\n') }}"
+  vars:
+    url: >-
+      {{ lookup('env','CI_PROJECT_URL') }}/pipelines/{{
+      trigger_out.json.id }}"
+    msg: |
+      ******************************************************************
+      * Pipeline triggered for step '{{ step }}'
+      * {{ url }}
+      ******************************************************************

@@ -1,0 +1,20 @@
+---
+
+- debug:
+    var: limit_to
+    verbosity: 3
+- debug:
+    var: job_name
+    verbosity: 3
+- name: copy all files if filters and rename if needed
+  copy:
+    decrypt: false
+    src: "{{ previous_artifacts_folder }}/{{ job_name }}/{{ original }}"
+    dest: "{{ final_artifacts_folder }}/{{ renamed }}"
+  loop: "{{ limit_to }}"
+  vars:
+    original: "{{ file.keys()|first }}"
+    renamed: "{{ file.values()|first }}"
+  loop_control:
+    loop_var: file
+    label: "{{ original }}"

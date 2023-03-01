@@ -1,0 +1,93 @@
+---
+##
+# Warn if log level is high
+##
+- name: Echo running pipeline link
+  debug:
+    msg: "{{ msg.split('\n') }}"
+    verbosity: 3
+  vars:
+    msg: |
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !! Log level is HIGH  !                                               !!
+      !! Some sensitive data may be visible to everyone.                    !!
+      !! Don't forget to clean the task output !                            !!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+##
+# Check Step parameters
+##
+- name: check 'step' is set
+  fail:
+    msg: 'Step must be defined ! (use --extra-vars "step=test1")'
+  when: step is not defined
+
+##
+# Check the pod is not protected
+##
+- name: clean var
+  set_fact:
+    protected_pods: []
+  when: protected_pods|default() == None
+
+- name: check pod protection
+  fail:
+    msg: 'This pod is protected'
+  when:
+    inventory_hostname in protected_pods and
+    lookup( 'env', 'AREYOUSURE') != 'MAIS OUI !!!'
+
+##
+# Prepare the step config
+##
+- name: get default step parameters
+  set_fact:
+    config: >-
+      {{ gitlab.git_projects[
+           hostvars[inventory_hostname].scenario_steps[step].project] |
+         combine(hostvars[inventory_hostname].scenario_steps[step]) }}
+
+- name: merge step parameters
+  set_fact:
+    config: >-
+      {{ config| combine(
+         {'parameters': config.parameters|
+          combine(config.extra_parameters)}) }}
+  when: config.extra_parameters is defined
+
+##
+# Check if we must run this step - Must be run at the end of this role
+##
+
+- name: Set default skip_run value
+  set_fact:
+    skip_run: false
+
+- name: run except parameter
+  include_tasks: except.yml
+  loop: "{{ config.except }}"
+  loop_control:
+    loop_var: condition
+    label: "{{ condition }}"
+  when: config.except is defined
+
+- name: Set default skip_run value
+  set_fact:
+    skip_run: true
+  when: config.only is defined
+
+- name: run only parameter
+  include_tasks: only.yml
+  loop: "{{ config.only }}"
+  vars:
+    skip_all: false
+  loop_control:
+    loop_var: condition
+    label: "{{ condition }}"
+  when: config.only is defined
+
+- name: Skip if none of ONLY is successful
+  include_tasks: exit.yml
+  vars:
+    condition: "None of ONLY conditions are successful"
+  when: config.only is defined and skip_run

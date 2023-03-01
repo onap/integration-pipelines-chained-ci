@@ -1,0 +1,85 @@
+---
+jumphost:
+  server: rebond.francecentral.cloudapp.azure.com
+  user: !vault |
+    $ANSIBLE_VAULT;1.1;AES256
+    3530396436393930316538613463623538376563633364623938623136353961393336326538
+    39363265373139623432353864306265666437663433363338630a3638386530613233326439
+    3932303435363761346338373534613363336633616537636361396466376435626335333462
+    3234633631396331323639393435370a35646638343365616234383835303932323734613739
+    61313533373262363530
+environment: azure/onap_gating_3/oom_gating
+scenario_steps:
+  config:
+    project: config
+    get_artifacts:
+      - name: azure
+        static_src: true
+    infra: az14-gating3
+    ssh_access: azure.eyml
+  build_integration:
+    project: build_integration
+    get_artifacts: config
+    only:
+      - "PROJECT == testsuite/pythonsdk-tests"
+  onap_deploy:
+    branch: add_strimzi_chartmuseum
+    extra_parameters:
+      CLEAN: True
+      WORKAROUND: False
+      ONAP_REPOSITORY: docker.nexus.azure.onap.eu
+      ONAP_FLAVOR: unlimited
+      SERVICEMESH: true
+      INGRESS: true
+      DOCKER_HUB_PROXY: docker.nexus.azure.onap.eu
+      ELASTIC_PROXY: docker.nexus.azure.onap.eu
+      K8S_GCR_PROXY: docker.nexus.azure.onap.eu
+      GATHER_NODE_FACTS: False
+      METRICS_CRD: True
+    get_artifacts:
+      - name: vim_deploy:onap_oom_gating_k8s_azure_3
+        in_pipeline: false
+        limit_to:
+          - vars/clouds.yaml: vars/user_cloud.yml
+      - name: k8s_deploy:onap_oom_gating_k8s_azure_3
+        in_pipeline: false
+        limit_to:
+          - inventory/infra: inventory/infra
+          - vars/pdf.yml: vars/pdf.yml
+          - vars/idf.yml: vars/idf.yml
+      - name: config
+        limit_to:
+          - vars/ssh_gateways.yml: vars/ssh_gateways.yml
+          - vars/vaulted_ssh_credentials.yml: vars/vaulted_ssh_credentials.yml
+    project: oom
+  onap_test:
+    project: xtesting-onap
+    branch: master
+    get_artifacts:
+      - name: k8s_deploy:onap_oom_gating_k8s_azure_3
+        in_pipeline: false
+        limit_to:
+          - vars/kube-config: vars/kube-config
+          - inventory/infra: inventory/infra
+          - vars/pdf.yml: vars/pdf.yml
+      - name: config
+        limit_to:
+          - vars/ssh_gateways.yml: vars/ssh_gateways.yml
+          - vars/vaulted_ssh_credentials.yml: vars/vaulted_ssh_credentials.yml
+      - name: onap_deploy
+        limit_to:
+          - vars/cluster.yml: vars/cluster.yml
+    extra_parameters:
+      DEPLOYMENT: oom
+      INFRA_DEPLOYMENT: aks
+      DEPLOYMENT_TYPE: full
+      DEPLOY_SCENARIO: onap-ftw
+      INGRESS: true
+      POD: azure-gating-3
+      OS_TEST_CLOUD: admin
+      TEST_RESULT_DB_URL: http://testresults.opnfv.org/onap/api/v1/results
+      S3_ENDPOINT_URL: http://minio.azure3.onap.eu:9000
+      S3_INTERNAL_ENDPOINT_URL: http://minio.minio:9000
+      S3_HTTP_DST_URL: http://minio.minio:8181
+      RANDOM_WAIT: True
+
