@@ -1,0 +1,13 @@
+---
+
+- name: get_artifacts with just one value
+  include_tasks: get_one_artifact.yml
+  vars:
+    artifact_job_name: "{{ config.get_artifacts }}"
+
+- name: get the url of the artifact
+  set_fact:
+    artifacts_src: >-
+      {{ gitlab.api_url }}/projects/{{
+      lookup( 'env', 'CI_PROJECT_ID') }}/jobs/{{
+      artifact_job_ids[0] }}/artifacts

@@ -1,0 +1,53 @@
+---
+- block:
+    - name: get end time
+      set_fact:
+        time_end: "{{ lookup('pipe', 'date +%s%N | head -c 13' ) | int }}"
+
+    - name: calculate duration
+      set_fact:
+        duration:
+          "{{ ((time_end|int) - (time_start|int))/1000 }}"
+
+    - name: "update a grafana annotation start"
+      uri:
+        url:
+          "{{ grafana.api | regex_replace('\\/$', '') }}/annotations/{{
+          grafana_events.json.id }}"
+        method: PUT
+        status_code: 200
+        body_format: "json"
+        body: "{{
+          {
+            'time': time_start | int,
+            'tags': grafana_tags + [ result ],
+            'text': text + '<br/>Duration (s): ' + duration
+          }
+          }}"
+        headers:
+          Content-Type: "application/json"
+          Accept: "application/json"
+          Authorization: "Bearer {{ grafana.token }}"
+
+    - name: "update a grafana annotation end"
+      uri:
+        url:
+          "{{ grafana.api | regex_replace('\\/$', '') }}/annotations/{{
+          grafana_events.json.endId }}"
+        method: PUT
+        status_code: 200
+        body_format: "json"
+        body: "{{
+            {
+              'time': time_end | int,
+              'tags': grafana_tags + [ result ],
+              'text': text + '<br/>Duration (s): ' + duration
+            }
+          }}"
+        headers:
+          Content-Type: "application/json"
+          Accept: "application/json"
+          Authorization: "Bearer {{ grafana.token }}"
+
+  delegate_to: "{{ grafana.jumphost }}"
+  ignore_errors: true

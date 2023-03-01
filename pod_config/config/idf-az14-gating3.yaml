@@ -1,0 +1,171 @@
+---
+idf:
+  net_config: &net_config
+    internal:
+      interface: 0
+      network: 192.168.65.0
+      mask: 24
+      gateway: 192.168.65.1
+      dns: 192.168.65.1
+
+aks:
+  peering_network: internal
+
+az_infra:
+  jumphost_network: admin
+
+openstack:
+    release: stable/victoria
+
+os_infra:
+  net_config: *net_config
+  user:
+    name: cloud
+    is_admin: false
+  tenant:
+    name: Gating
+  images_to_push:
+  image_default: debian-10
+  image2user_mapping:
+    debian-10: debian
+  nodes_roles:
+    nfs01: [kube-master, nfs-server]
+    devstack01: [devstack]
+  roles_group:
+    k8s-cluster:
+      - kube-master
+      - kube-node
+    k8s-full-cluster:
+      - k8s-cluster
+      - jumphost
+      - devstack
+
+  onap:
+    global_storage:
+      enabled: true
+      rwx_class: nfs
+      class: default
+
+  dns:
+    update: true
+    provider: gandiv5
+    zone: onap.eu
+    name: azure3
+    master: nfs01
+
+  kubernetes:
+    dns_prefix: onap-gating
+    name: cluster
+    kubernetes_version: 1.23.15
+    helm_version: v3.8.2
+    worker_role: kube-node
+    helm:
+      repositories:
+        - name: jetstack
+          url: https://charts.jetstack.io
+        - name: minio
+          url: https://helm.min.io/
+    charts:
+      cert-manager:
+        chart: jetstack/cert-manager
+        namespace: cert-manager
+        istioEnabled: true
+        content: |
+          ---
+          installCRDs: true
+          prometheus:
+            servicemonitor:
+              enabled: true
+      minio:
+        chart: minio/minio
+        namespace: minio
+        content: |
+          ---
+          accessKey: "{{ lookup('env','S3_ACCESS_KEY') }}"
+          secretKey: "{{ lookup('env','S3_SECRET_KEY') }}"
+          replicas: 1
+          persistence:
+            size: 100Gi
+          service:
+            type: LoadBalancer
+            nodePort: 30345
+          metrics:
+            serviceMonitor:
+              enabled: true
+      nfs-server-provisioner:
+        chart: stable/nfs-server-provisioner
+        namespace: nfs-server
+        enabled: true
+
+  ssh_pub_key_default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqbo9WQwjZp6Op6a\
+    wsgRaBdR+gJhbmMHOm+2Ol7TJlXe2wV5r2vFQhbmd0GHTdz4g8MH+y7oO5637RoAMZlY4ieZdS\
+    VGZZ5HvIoMqoS7FVT6u1kvVTVBmlpEgF4gXLsJi3s4bGlXqVnYA42SoKX65DhvHgLIScL1E6uS\
+    63MLRP+clFchNASyhz8CgRPdazE7vy4LJJNE8C6hj0MVSOVasJKMZQAmqjSFkuMy0ECNDj5sQm\
+    oPYozpvM9xsP/UWiW8MCWuTh33JRBPH/06OIUMVN0dD+xhfVgYY+aueFRjs4oaMm2kfgiTJsQw\
+    uAziLrvnusSse+idq9t49YeiAPGpuZ sylvain@MacBook-Pro-de-Sylvain.local
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDBlukmibuf0LMrK5NmZkxIziYrOovBzYG8JmQ\
+    KONN3KtRZBy9ooL5JBFfmdWMvdcWoLee23R024DwWGF1ooR9SyolXQ+K7lbsSzw0NR/+feRs3of\
+    asxj0bXJsWjC48C7eD8v48Y2PMs5uP5Yp/RMOThHVN7w2gbm2OZGG5MIV1ixML/coqo39clm8dC\
+    pFhSZmPfmVFliOBW8dFk+DSoKClVy7FH56qEzKoenLJy/+j0B10/5t6T7Sk1QUWDOfIikBomGa2\
+    gZAozgGFnuoK9b7FBwlyZiYbbbL4EShiqkEaY938zYcXr1/bqcZWj/F30hK5ddo6f1IDwr57U6l\
+    1W5Vd thierry.hardy@orange.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDB22+oh+TaQs5XbJtDY3elDWHnTlPCOwqr0kh\
+    wYGn/teOr9hPDtqADPjaymoowNDbFIB9CZleZuLFAIryCplb563EwHoaGllRaBom/Alzj3QRIhx\
+    FjhWCBzes+ix6NRqKQZ7wPGB7u5QuQCvqlMgLKDNz2UmPoIoYLrhrFyUE5cxWtZ2vmSMTkOpLwO\
+    Aw+9UWMww6jzCLNcQjl25zyfSLXVCLLbuyBUza0SvcyxH4glbjTx3BjdCp6ovDDhO2z9tvofvzF\
+    j5ceGlohD40ETiROT9C7hKj7Bn2MPDCKPEEjBVjkh9YkpUD9W6uW/t1loGoajLZeJEbN946L3Lt\
+    Yi0wz morgan.richomme@orange.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDRslHbwKe4AzMa9dRXnpEDjrbqMvPuGxG2zzZ\
+    KbKWsqtzUhgIAMhUL6vw4ePI34bN6uqq8qsQDDu5JYJ3sO1WwpFhX0ZEvWohQK55oe94kfXfnbu\
+    sOwRfd8uiWh2s8lfCL7BlbruKGIJcueX+bMLJfUPo3vo5Ae3bBn+J4sG1tLLpf9UxvuXmnZiRyv\
+    QJjCy2f6BOeS2AzRhezkC23IS2gylzG3I3MT1acw3i9wAF2yZ2ca++6MdLb6e6Bu30Y9rO7PAj8\
+    76myts4GaBhbXmi1+rjb0HbUm3V9wxG7drKv7C0y0nftBS0Q9yCKqld96WQgseYL3CcwEe4qVqn\
+    a7DxWQCJROJRi9/DcSSoL73jPcfSWyRqeutWp55S/ajvseAG2yZExbMiGOmW5qsyAGMigjGik59\
+    H7gSJR0RitQtGpoqBzsuFaGgYnpfUkAgnjdqqlLT7iRO6OZAXVVSZODbb6LE+2av4B0Yp7SHx8U\
+    Rps4CGBS8HyGHQNelnOmra8SnVmXtOhYU87kdOoPaTU7GkuYiy8ctewSoHdgX40tRbB45AMlc+L\
+    avf+4hx/5K/u50gei19tUM9aKf6TmdH8LFOPtwUtMd/4nNVYmuwdEFqTVTkVPYdpIF75N5NDF7d\
+    uDRyYakTPG/rvj9l0zT5V7sfc3QA0TVNdHu6NLPHHqvkjsQ== k.opasiak@samsung.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDHfYKtwwhaiw+uq8G4G6TVFRsvq9kbaN+vZ/H\
+    cToLN1LfIJVKFCGykbnrm+f4LrGM6CTvCxt6YU2wpszHoCIVQc+9FTe58O/fuSrrSPVS3JuwIqO\
+    /QT4pTnxGrP/FrEEkefoEUD1kLFxYLKy0z4+d0uLee1aBRlSwbk+dWkVoedkoXQmUfTugsORiuk\
+    beuFEJR77MQDAGYC0AVbl7Eb0Fv/DNNV/SLNWHh0OP5ilLeSNpqC5s51u7iALhbOzI1kRHZrc/8\
+    SExyXjeBNy01l4cNfOse3/3AWo8gOVqI49b5UggQPh1fuBQ7QZkzbRp9/U7+t4v6b+JJg6eBeoj\
+    A/yuL0uMrKuX4hrT5euTOBup4GyTv8GHS8EN4jRWbWMz6hQ1FYwssnAIpVWXyl/4xD2jJ0Av9mG\
+    /W0htB/wnNeOss+RokiWA5HQ+Dupbcp2GucMhs2atRPD0V30HbvcUMxPE/BC15R1uqQapV5hkz1\
+    WrP5KQTHdYmDRvKU5ZxBNBAkR8= j.latusek@samsung.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCSNiMbJEDhn32OXdWxRwftB8LRvF9X1npSlfB\
+    2M3ezxKqzm3bx4yhBMm7sCBhS6f1dQuIiLz4BE6h1P+AdXfg+zkqkV44lhGLGAu7L2ysRRCUGoU\
+    +h4LwRVBuKyd5WL3u3jzwBK/tp1uHNqSVEoRPFgfkBNZwALoclymw/2W7gfQ2OAVeu6pFycLF9e\
+    oUSkAWQxlZcYaVXSIL7EhSVs7pP41BzQ3DIHv1fN/bVzbss8bePUa5j8gHJiSrKfU/gslnCN8m7\
+    yJuj1IpmfK/XJl+JAU9Y0+GSqvN6mitIe6m+qhkCK75A6+pXdycbZlYT/fUlFBv1rZCuzapb3NC\
+    b5V8gO7B1Rx3W2lu50m5lmRjLjRichyRsZCtWQNAOUi7I7BJcq8voEqb5sjuIuZThezMT5TW+d4\
+    1+JlbD2bQjAiFz5TEtnrHDXERW5PmsVqlqhQnMc/lSrLmHQaQPFTZtyI0jfB5Jvehp0y7PdC5Li\
+    rz8wSuWB2cXLToxhGqxz3xgZ4s= samuel.liard@orange.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCx/xA4zpJOXj03X3H8jNAZynKGOJvOkqnoRwq\
+    1gEw46WDnZoElAkTojjCZSqBXYsmK48uLNMsys0FufL4XPjtYEvjrApooQBXsH+JdGKjm9M16pv\
+    MSPjcxov0IQ+GuTrBFEbg6ismmLNgAGdXBvJa4q+Ne0yaPEh3WbffbPEShIUj6wiFFI7pdd4je2\
+    Dka2kPrFBQUsJe6qUrQ3nbpXpNg3XGnKm3fqNfKWSw5Lc5UfvKxgLxU+9ur46O63LwgAyako2FY\
+    J5dC6RkAe91fpqUNcM4JhjuqmeTrqpi8QEjX4t22Zr6W26Ueepd7uuKyiRnXYd27uwjvHCgC41V\
+    0BGiB krzysztof.kuzmicki@nokia.com
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCwJS4K/mt2MfH2VOlOWwEqFW4T/oTIzM8lcz8\
+    e3QeKMBJJa5jWiviEruXhbc3kG4nHuq1xkaQLxqbOUN4TF1GH4AHkCl1mLtb9TnBWtihV4A9zQD\
+    bjluNmsT0lotOOK3Qfqee35BXkoDX4IXjjqjHXmUM2n4DDajJUd38H7Owd28nlpDhzXpFhfDzM5\
+    8wO586frKs0UGYM6gc8JyaLRPACum0wFz9HzXb4NShDQh+smW+v6fIeKe9d4HC8t/b8XZFChhGe\
+    pLN/i0EGLZqwX5uHrGoq3/6i7gAmHBmNs1wR8qX5nVl28VKdz4Dbum9hJjoxSNC54K8Yyh5JbCB\
+    G7ft/eXLGY+Dm5moPaoPBkpOHcIk5aP/MVNgOBmAETxnujlaXYmrorrH0aTB9UGE0zHezzXfq0a\
+    VjuSsFFmXDFOoKJLyc/C8WnMDdB+GD3UBnCdhlKPjbod8OAPjq1OdFpLgR0APTb3MB/v1Nfdhf3\
+    hqYatkG0P9TCVvjfLqzeHqHhfs= ahmad@Ahmads-MBP
+
+    ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDA/6kqp3MNvYCajLYIunRG4w8aZFbfNZqFmhO\
+    nvR/8h0vrTJAxSVPMZVETlEkIdZMB8wKHnvj75TepQVxP2dXtqlgrmVnCOrKDYNgCQsMoDr/EaY\
+    Xbv+ph/asWWFuIQ9wPVZG3+Qlf+Y5ne88WVnjlLOvqoB7UJYEqNnhqDR4OVgBVhnROlcnPZE4mh\
+    3TOxFXMDNctOQUr+4h4Cp7hBzXW7SbbpDMiQizIGSEFrzA/L0/peSK1f105KDdenWSfSxsbqABu\
+    KL+2/68BheRqcXxhiXf3AUGMy2awhLRLPCmTbE10J2Ky6z1bNgB0Wnqb0bwWLerow0B3Urb+c/0\
+    Lv9EZ Michal.Jagiello@t-mobile.pl"

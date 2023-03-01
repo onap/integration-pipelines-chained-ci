@@ -1,0 +1,7 @@
+---
+previous_artifacts_folder: "{{ playbook_dir }}/previous_artifacts"
+final_artifacts_folder: "{{  playbook_dir }}/FINAL_ARTIFACT"
+
+job_id_fetch:
+  max_page: 100
+  per_page: 100

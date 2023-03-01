@@ -1,0 +1,168 @@
+##############################################################################
+# Copyright (c) 2017 Orange and others.
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+---
+### vPOD descriptor file ###
+
+details:
+  pod_owner: OPNFV
+  contact: N/A
+  lab: OPNFV LaaS
+  location: N/A
+  type: production
+  link: http://wiki.opnfv.org/
+##############################################################################
+
+nodes:
+  - name: nfs01
+    node:
+      type: virtual
+      vendor: azure
+      model:
+        offer: debian-10
+        version: latest
+        publisher: Debian
+        sku: "10"
+      arch: x86_64
+      cpus: 1
+      cpu_cflags: host-model
+      cores: 1
+      memory: 1G
+      flavor: Standard_B2s
+    disks:
+      - name: disk1
+        disk_capacity: 27G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+      - name: disk-nfs
+        disk_capacity: 100G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+    remote_management: &remote_management
+      type:
+        - ipmi: NA
+      user: NA
+      pass: NA
+      address: NA
+      mac_address: NA
+    interfaces:
+      - mac_address:
+        name: nic1
+        speed:
+        features:
+        network: internal
+  - name: devstack01
+    node:
+      type: virtual
+      vendor: azure
+      model:
+        #offer: "0001-com-ubuntu-server-focal"
+        #sku: "20_04-lts-gen2"
+        offer: UbuntuServer
+        version: latest
+        publisher: Canonical
+        sku: "18_04-lts-gen2"
+      arch: x86_64
+      cpus: 16
+      cpu_cflags: host-model
+      cores: 16
+      memory: 64G
+      flavor: Standard_D16s_v3
+    disks:
+      - name: disk1
+        disk_capacity: 32G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+    remote_management: *remote_management
+    interfaces:
+      - mac_address:
+        name: nic1
+        speed:
+        features:
+        network: internal
+  - name: worker01
+    node: &workerparams
+      type: virtual
+      vendor: aks
+      model: worker
+      arch: x86_64
+      cpus: 4
+      cpu_cflags: host-model
+      cores: 4
+      memory: 16G
+      flavor: Standard_D4s_v3
+    disks: &workerdisks
+      - name: disk1
+        disk_capacity: 8G
+        disk_type: qcow2
+        disk_interface: ide
+        disk_rotation:
+    remote_management: *remote_management
+    interfaces: &interfaces
+      - mac_address:
+        name: nic1
+        speed:
+        features:
+        network: kubernetes
+  - name: worker02
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker03
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker04
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker05
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker06
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker07
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker08
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker09
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker10
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker11
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces
+  - name: worker12
+    node: *workerparams
+    disks: *workerdisks
+    remote_management: *remote_management
+    interfaces: *interfaces

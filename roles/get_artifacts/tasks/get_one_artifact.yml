@@ -1,0 +1,49 @@
+---
+##
+# Search for a job id
+#    with name: artifact_job_name
+#    limit to pipeline if artifact_in_pipeline (default: true)
+##
+
+- name: set empty fact for job
+  set_fact:
+    job: {}
+    artifact_in_pipeline: "{{ artifact_in_pipeline | default(true) }}"
+
+- name: get job id in this pipeline
+  when: artifact_in_pipeline | bool
+  block:
+    - name: "Get job successful job ids of the pipeline"
+      uri:
+        url: >-
+          {{ gitlab.api_url }}/projects/{{
+          lookup( 'env', 'CI_PROJECT_ID') }}/pipelines/{{
+          lookup( 'env', 'CI_PIPELINE_ID') }}/jobs?scope[]=success
+        method: GET
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab.private_token }}"
+      register: pipeline_success_jobs
+    - name: get the job id
+      set_fact:
+        job: >-
+          {{ { 'id':
+                  pipeline_success_jobs.json |json_query(
+                    '[?name==`'+ artifact_job_name + ':' +
+                    inventory_hostname +'`].id') | last
+              } }}
+
+- name: fetch the job id corresponding to get_artifact value if not in pipeline
+  include_tasks: job_id_fetch.yml
+  loop: "{{ range(0, job_id_fetch.max_page)| list }}"
+  when: not (artifact_in_pipeline | bool )
+  loop_control:
+    loop_var: page
+
+- name: check we found an artifact job id
+  fail:
+    msg: 'We can not found a correct job id'
+  when: job.id is not defined
+
+- name: get last successful job id
+  set_fact:
+    artifact_job_ids: "{{ (artifact_job_ids|default([])) + [job.id] }}"
