@@ -16,6 +16,24 @@
       "revId": "2fdf39e417dad1d25874bf9b3c9d5ec23dc4ffc9",
       "serverId": "14b4e41f-c4e3-4fb9-9955-6a9b5656895a",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "e38ef3cc_0d86890c",
+        "filename": ".gitlab-ci.yml",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 6079
+      },
+      "writtenOn": "2023-03-03T12:04:55Z",
+      "side": 1,
+      "message": "and what about that?",
+      "parentUuid": "d1c513b3_94262a06",
+      "revId": "2fdf39e417dad1d25874bf9b3c9d5ec23dc4ffc9",
+      "serverId": "14b4e41f-c4e3-4fb9-9955-6a9b5656895a",
+      "unresolved": true
     }
   ]
 }
