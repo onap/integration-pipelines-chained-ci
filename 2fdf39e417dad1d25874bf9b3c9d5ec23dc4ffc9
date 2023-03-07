@@ -34,6 +34,24 @@
       "revId": "2fdf39e417dad1d25874bf9b3c9d5ec23dc4ffc9",
       "serverId": "14b4e41f-c4e3-4fb9-9955-6a9b5656895a",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "e0efddf3_02abffde",
+        "filename": ".gitlab-ci.yml",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 6334
+      },
+      "writtenOn": "2023-03-07T10:04:12Z",
+      "side": 1,
+      "message": "Sorry, this is auto-generated file. I fixed the original value in all.yaml but forgot to regenerate the file. Please give me 2 minutes.",
+      "parentUuid": "d1c513b3_94262a06",
+      "revId": "2fdf39e417dad1d25874bf9b3c9d5ec23dc4ffc9",
+      "serverId": "14b4e41f-c4e3-4fb9-9955-6a9b5656895a",
+      "unresolved": false
     }
   ]
 }
